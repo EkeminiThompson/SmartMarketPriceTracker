@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Market Price Tracker - Rural Nigerian Traders</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2e7d32;
+            --secondary-color: #558b2f;
+            --accent-color: #ff6f00;
+            --bg-light: #f1f8e9;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-light) 0%, #fff 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 3rem 0;
+            margin-bottom: 2rem;
+            border-radius: 0 0 50px 50px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.5rem;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(46, 125, 50, 0.3);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #f57c00 100%);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: bold;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(46, 125, 50, 0.1);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 1rem;
+        }
+
+        .metric-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            margin: 0.25rem;
+            font-weight: bold;
+        }
+
+        .accuracy-badge {
+            background: #4caf50;
+            color: white;
+        }
+
+        .rmse-badge {
+            background: #2196f3;
+            color: white;
+        }
+
+        .mae-badge {
+            background: #ff9800;
+            color: white;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        .trend-up {
+            color: #4caf50;
+        }
+
+        .trend-down {
+            color: #f44336;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        @media (max-width: 768px) {
+            .hero-section h1 {
+                font-size: 1.75rem;
+            }
+            .stat-value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                Smart Market Price Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#prediction">Price Prediction</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#data-entry">Add Data</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#statistics">Statistics</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="container text-center">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-seedling me-2"></i>
+                Empowering Rural Traders with AI
+            </h1>
+            <p class="lead">
+                Track and predict agricultural commodity prices using advanced machine learning
+            </p>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="text-center text-white">
+            <div class="spinner-border" role="status"></div>
+            <p class="mt-3 fs-5">Analyzing market data...</p>
+        </div>
+    </div>
+
+    <div class="container mb-5">
+        <!-- Price Prediction Section -->
+        <section id="prediction" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-brain me-2"></i>
+                    AI-Powered Price Prediction
+                </div>
+                <div class="card-body p-4">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Select Commodity</label>
+                            <select class="form-select" id="commoditySelect">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Prediction Model</label>
+                            <select class="form-select" id="modelSelect">
+                                <option value="arima">ARIMA</option>
+                                <option value="lstm">LSTM</option>
+                                <option value="compare">Compare Both</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Forecast Days</label>
+                            <input type="number" class="form-control" id="forecastDays" value="30" min="7" max="90">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-primary w-100" onclick="predictPrices()">
+                                <i class="fas fa-magic me-2"></i>Predict
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div id="predictionResults" style="display: none;">
+                        <hr class="my-4">
+                        
+                        <!-- Metrics -->
+                        <div id="metricsContainer" class="mb-4"></div>
+
+                        <!-- Chart -->
+                        <div class="chart-container">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+
+                        <!-- Insights -->
+                        <div id="insightsContainer" class="mt-4"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Statistics Section -->
+        <section id="statistics" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Market Statistics
+                </div>
+                <div class="card-body p-4">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Select Commodity for Statistics</label>
+                            <select class="form-select" id="statsCommoditySelect">
+                                <option value="">Choose a commodity...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-primary w-100" onclick="loadStatistics()">
+                                <i class="fas fa-chart-pie me-2"></i>Show Statistics
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="statisticsResults" style="display: none;">
+                        <hr class="my-4">
+                        <div class="row" id="statsCards"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data Entry Section -->
+        <section id="data-entry" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-database me-2"></i>
+                    Add New Price Data
+                </div>
+                <div class="card-body p-4">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Commodity Name</label>
+                            <input type="text" class="form-control" id="newCommodity" 
+                                   placeholder="e.g., Rice, Tomatoes">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Price (₦)</label>
+                            <input type="number" class="form-control" id="newPrice" 
+                                   placeholder="Enter price" step="0.01">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" id="newDate">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-warning w-100" onclick="addPrice()">
+                                <i class="fas fa-plus me-2"></i>Add
+                            </button>
+                        </div>
+                    </div>
+                    <div id="addPriceMessage" class="mt-3"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0">
+                <i class="fas fa-heartbeat me-2"></i>
+                Developed for Rural Nigerian Traders | Powered by AI & Machine Learning
+            </p>
+            <small class="text-muted">ARIMA & LSTM Time-Series Forecasting</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = `${window.location.origin}/api`;
+        let currentChart = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCommodities();
+            setTodayDate();
+        });
+
+        function setTodayDate() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('newDate').value = today;
+        }
+
+        async function loadCommodities() {
+            try {
+                const response = await fetch(`${API_BASE}/commodities`);
+                const data = await response.json();
+                
+                const selects = [
+                    document.getElementById('commoditySelect'),
+                    document.getElementById('statsCommoditySelect')
+                ];
+                
+                selects.forEach(select => {
+                    select.innerHTML = '<option value="">Choose a commodity...</option>';
+                    data.commodities.forEach(commodity => {
+                        const option = document.createElement('option');
+                        option.value = commodity;
+                        option.textContent = commodity;
+                        select.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading commodities:', error);
+                alert('Failed to load commodities. Please refresh the page.');
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        async function predictPrices() {
+            const commodity = document.getElementById('commoditySelect').value;
+            const model = document.getElementById('modelSelect').value;
+            const forecastDays = parseInt(document.getElementById('forecastDays').value);
+
+            if (!commodity) {
+                alert('Please select a commodity');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                let response, data;
+
+                if (model === 'compare') {
+                    response = await fetch(`${API_BASE}/compare_models`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ commodity, forecast_days: forecastDays })
+                    });
+                    data = await response.json();
+                    displayComparisonResults(data);
+                } else {
+                    response = await fetch(`${API_BASE}/predict`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            commodity, 
+                            model, 
+                            forecast_days: forecastDays 
+                        })
+                    });
+                    data = await response.json();
+                    displayPredictionResults(data);
+                }
+
+                document.getElementById('predictionResults').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Prediction failed. Please try again.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function displayPredictionResults(data) {
+            // Display metrics
+            const metricsHTML = `
+                <div class="text-center">
+                    <h5 class="mb-3">Model Performance - ${data.model}</h5>
+                    <div>
+                        <span class="metric-badge accuracy-badge">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Accuracy: ${data.metrics.accuracy}%
+                        </span>
+                        <span class="metric-badge rmse-badge">
+                            <i class="fas fa-chart-line me-1"></i>
+                            RMSE: ₦${data.metrics.rmse}
+                        </span>
+                        <span class="metric-badge mae-badge">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            MAE: ₦${data.metrics.mae}
+                        </span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('metricsContainer').innerHTML = metricsHTML;
+
+            // Create chart
+            const historical = data.historical;
+            const forecast = data.forecast;
+
+            const labels = [
+                ...historical.map(d => d.date),
+                ...forecast.map(d => d.date)
+            ];
+
+            const historicalPrices = historical.map(d => d.price);
+            const forecastPrices = new Array(historical.length).fill(null).concat(
+                forecast.map(d => d.price)
+            );
+
+            createChart(labels, historicalPrices, forecastPrices, data.model);
+
+            // Display insights
+            const currentPrice = historical[historical.length - 1].price;
+            const predictedPrice = forecast[forecast.length - 1].price;
+            const priceChange = ((predictedPrice - currentPrice) / currentPrice * 100).toFixed(2);
+            const trend = priceChange > 0 ? 'increase' : 'decrease';
+            const trendClass = priceChange > 0 ? 'trend-up' : 'trend-down';
+            const trendIcon = priceChange > 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+
+            const insightsHTML = `
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-lightbulb me-2"></i>Market Insights</h5>
+                    <p class="mb-2">
+                        <strong>Current Price:</strong> ₦${currentPrice.toFixed(2)}
+                    </p>
+                    <p class="mb-2">
+                        <strong>Predicted Price (${forecast.length} days):</strong> 
+                        ₦${predictedPrice.toFixed(2)}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Expected Change:</strong> 
+                        <span class="${trendClass}">
+                            <i class="fas ${trendIcon} me-1"></i>
+                            ${Math.abs(priceChange)}% ${trend}
+                        </span>
+                    </p>
+                    <hr>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        ${getRecommendation(trend, priceChange)}
+                    </small>
+                </div>
+            `;
+            document.getElementById('insightsContainer').innerHTML = insightsHTML;
+        }
+
+        function displayComparisonResults(data) {
+            // Display both models' metrics
+            let metricsHTML = '<div class="text-center"><h5 class="mb-3">Model Comparison</h5>';
+            
+            if (data.arima) {
+                metricsHTML += `
+                    <div class="mb-3">
+                        <h6>ARIMA Model</h6>
+                        <span class="metric-badge accuracy-badge">Accuracy: ${data.arima.metrics.accuracy}%</span>
+                        <span class="metric-badge rmse-badge">RMSE: ₦${data.arima.metrics.rmse}</span>
+                        <span class="metric-badge mae-badge">MAE: ₦${data.arima.metrics.mae}</span>
+                    </div>
+                `;
+            }
+            
+            if (data.lstm) {
+                metricsHTML += `
+                    <div class="mb-3">
+                        <h6>LSTM Model</h6>
+                        <span class="metric-badge accuracy-badge">Accuracy: ${data.lstm.metrics.accuracy}%</span>
+                        <span class="metric-badge rmse-badge">RMSE: ₦${data.lstm.metrics.rmse}</span>
+                        <span class="metric-badge mae-badge">MAE: ₦${data.lstm.metrics.mae}</span>
+                    </div>
+                `;
+            }
+            
+            metricsHTML += '</div>';
+            document.getElementById('metricsContainer').innerHTML = metricsHTML;
+
+            // Create comparison chart
+            const historical = data.historical;
+            const labels = [
+                ...historical.map(d => d.date),
+                ...data.dates
+            ];
+
+            const historicalPrices = historical.map(d => d.price);
+            
+            createComparisonChart(
+                labels, 
+                historicalPrices,
+                data.arima ? data.arima.predictions : null,
+                data.lstm ? data.lstm.predictions : null
+            );
+
+            // Display insights
+            if (data.arima && data.lstm) {
+                const avgPrediction = (data.arima.predictions[data.arima.predictions.length - 1] + 
+                                      data.lstm.predictions[data.lstm.predictions.length - 1]) / 2;
+                const currentPrice = historical[historical.length - 1].price;
+                const priceChange = ((avgPrediction - currentPrice) / currentPrice * 100).toFixed(2);
+
+                const insightsHTML = `
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-lightbulb me-2"></i>Consensus Forecast</h5>
+                        <p class="mb-2">
+                            <strong>Average Predicted Price:</strong> ₦${avgPrediction.toFixed(2)}
+                        </p>
+                        <p class="mb-0">
+                            <strong>Expected Change:</strong> 
+                            <span class="${priceChange > 0 ? 'trend-up' : 'trend-down'}">
+                                ${Math.abs(priceChange)}% ${priceChange > 0 ? 'increase' : 'decrease'}
+                            </span>
+                        </p>
+                    </div>
+                `;
+                document.getElementById('insightsContainer').innerHTML = insightsHTML;
+            }
+        }
+
+        function createChart(labels, historical, forecast, modelName) {
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Historical Prices',
+                            data: historical,
+                            borderColor: '#2e7d32',
+                            backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.4
+                        },
+                        {
+                            label: `${modelName} Forecast`,
+                            data: forecast,
+                            borderColor: '#ff6f00',
+                            backgroundColor: 'rgba(255, 111, 0, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ₦' + 
+                                           context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₦' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createComparisonChart(labels, historical, arimaPred, lstmPred) {
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const datasets = [
+                {
+                    label: 'Historical Prices',
+                    data: historical,
+                    borderColor: '#2e7d32',
+                    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4
+                }
+            ];
+
+            if (arimaPred) {
+                datasets.push({
+                    label: 'ARIMA Forecast',
+                    data: new Array(historical.length).fill(null).concat(arimaPred),
+                    borderColor: '#2196f3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    tension: 0.4
+                });
+            }
+
+            if (lstmPred) {
+                datasets.push({
+                    label: 'LSTM Forecast',
+                    data: new Array(historical.length).fill(null).concat(lstmPred),
+                    borderColor: '#ff6f00',
+                    backgroundColor: 'rgba(255, 111, 0, 0.1)',
+                    borderWidth: 2,
+                    borderDash: [10, 5],
+                    pointRadius: 0,
+                    tension: 0.4
+                });
+            }
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ₦' + 
+                                           context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₦' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function getRecommendation(trend, change) {
+            const absChange = Math.abs(change);
+            if (trend === 'increase') {
+                if (absChange > 10) {
+                    return 'Strong upward trend expected. Consider holding current stock or buying more if planning to sell later.';
+                } else {
+                    return 'Moderate price increase expected. Good time for steady sales.';
+                }
+            } else {
+                if (absChange > 10) {
+                    return 'Significant price drop expected. Consider selling current stock soon.';
+                } else {
+                    return 'Slight price decrease expected. Monitor market closely.';
+                }
+            }
+        }
+
+        async function loadStatistics() {
+            const commodity = document.getElementById('statsCommoditySelect').value;
+            
+            if (!commodity) {
+                alert('Please select a commodity');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const response = await fetch(`${API_BASE}/statistics/${commodity}`);
+                const stats = await response.json();
+
+                const statsHTML = `
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Current Price</div>
+                            <div class="stat-value">₦${stats.current_price.toFixed(2)}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Average Price</div>
+                            <div class="stat-value">₦${stats.average.toFixed(2)}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Min / Max</div>
+                            <div class="stat-value">
+                                <small>₦${stats.min}</small> / <small>₦${stats.max}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Price Trend</div>
+                            <div class="stat-value ${stats.trend === 'upward' ? 'trend-up' : 'trend-down'}">
+                                <i class="fas fa-arrow-${stats.trend === 'upward' ? 'up' : 'down'}"></i>
+                                ${stats.trend}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Volatility</div>
+                            <div class="stat-value">${stats.volatility}%</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Std Deviation</div>
+                            <div class="stat-value">₦${stats.std_dev}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="stat-card">
+                            <div class="stat-label">Variance</div>
+                            <div class="stat-value">₦${stats.variance.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('statsCards').innerHTML = statsHTML;
+                document.getElementById('statisticsResults').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to load statistics');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function addPrice() {
+            const commodity = document.getElementById('newCommodity').value.trim();
+            const price = parseFloat(document.getElementById('newPrice').value);
+            const date = document.getElementById('newDate').value;
+
+            if (!commodity || !price || !date) {
+                showMessage('Please fill in all fields', 'danger');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/add_price`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ commodity, price, date })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Price added successfully!', 'success');
+                    document.getElementById('newCommodity').value = '';
+                    document.getElementById('newPrice').value = '';
+                    setTodayDate();
+                    loadCommodities(); // Refresh commodity list
+                } else {
+                    showMessage('Failed to add price: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showMessage('Failed to add price. Please try again.', 'danger');
+            }
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('addPriceMessage');
+            container.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

@@ -15,8 +15,23 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout
 import warnings
 warnings.filterwarnings('ignore')
 
+from flask.json.provider import DefaultJSONProvider
+
+class NumpyJSONProvider(DefaultJSONProvider):
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 app = Flask(__name__)
+app.json_provider_class = NumpyJSONProvider
+app.json = NumpyJSONProvider(app)
 CORS(app)
+
 
 # Configuration
 DATA_FILE = 'price_data.json'
@@ -110,16 +125,23 @@ def predict_arima(prices, forecast_days=30):
         # Make predictions
         forecast = fitted_model.forecast(steps=forecast_days)
         
-        # Calculate metrics
+        # Calculate metrics — align lengths before comparing
         train_predict = fitted_model.fittedvalues
-        mse = mean_squared_error(prices[1:], train_predict)
-        mae = mean_absolute_error(prices[1:], train_predict)
+        actual = np.array(prices)
+
+        # Trim both to the same length to avoid mismatch
+        min_len = min(len(actual), len(train_predict))
+        actual_trimmed = actual[-min_len:]
+        predicted_trimmed = train_predict[-min_len:]
+
+        mse = mean_squared_error(actual_trimmed, predicted_trimmed)
+        mae = mean_absolute_error(actual_trimmed, predicted_trimmed)
         rmse = np.sqrt(mse)
         
         return forecast.tolist(), {
-            'rmse': round(rmse, 2),
-            'mae': round(mae, 2),
-            'accuracy': round(100 - (mae / np.mean(prices) * 100), 2)
+            'rmse': float(round(rmse, 2)),
+            'mae': float(round(mae, 2)),
+            'accuracy': float(round(100 - (mae / np.mean(prices) * 100), 2))
         }
     except Exception as e:
         print(f"ARIMA Error: {e}")
