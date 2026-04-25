@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Market Price Tracker – Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --forest: #1a3d24; --leaf: #2e7d32; --lime: #7cb342;
+            --gold: #e6a817; --cream: #faf6ef; --ink: #1c1c1c;
+            --muted: #6b7566; --border: #d4dcc8;
+            --error: #c0392b; --success: #1e8449; --info: #1a5276;
+        }
+        body { font-family: 'DM Sans', sans-serif; background: var(--cream); min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
+
+        /* LEFT */
+        .left-panel { background: var(--forest); display: flex; flex-direction: column; justify-content: space-between; padding: 3rem; position: relative; overflow: hidden; }
+        .left-panel::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 20% 80%, rgba(124,179,66,0.25) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(230,168,23,0.15) 0%, transparent 40%); }
+        .brand { position: relative; z-index: 1; }
+        .brand-icon { width: 52px; height: 52px; background: var(--gold); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--forest); margin-bottom: 1.5rem; box-shadow: 0 8px 24px rgba(230,168,23,0.35); }
+        .brand h1 { font-family: 'DM Serif Display', serif; font-size: 1.8rem; color: #fff; line-height: 1.2; margin-bottom: 0.5rem; }
+        .brand p { color: rgba(255,255,255,0.55); font-size: 0.9rem; font-weight: 300; }
+        .market-showcase { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem 0; }
+        .market-cards { display: flex; flex-direction: column; gap: 0.75rem; width: 100%; }
+        .mcard { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; backdrop-filter: blur(6px); animation: floatIn 0.6s ease both; }
+        .mcard:nth-child(1){animation-delay:.1s}.mcard:nth-child(2){animation-delay:.2s}.mcard:nth-child(3){animation-delay:.3s}.mcard:nth-child(4){animation-delay:.4s}
+        @keyframes floatIn { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
+        .mcard-left { display: flex; align-items: center; gap: 0.75rem; }
+        .mcard-emoji { font-size: 1.4rem; }
+        .mcard-name { color: rgba(255,255,255,0.9); font-weight: 500; font-size: 0.9rem; }
+        .mcard-sub  { color: rgba(255,255,255,0.4); font-size: 0.75rem; }
+        .mcard-price { text-align: right; }
+        .mcard-amount { color: var(--gold); font-weight: 600; font-size: 1rem; }
+        .mcard-trend { font-size: 0.72rem; padding: 2px 8px; border-radius: 20px; display: inline-block; margin-top: 2px; }
+        .trend-up { background: rgba(124,179,66,0.2); color: #a5d86a; }
+        .trend-dn { background: rgba(192,57,43,0.2); color: #e47e74; }
+        .uml-strip { position: relative; z-index: 1; }
+        .uml-strip p { color: rgba(255,255,255,0.35); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; }
+        .use-cases { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .uc-pill { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 5px; }
+        .uc-pill i { color: var(--lime); font-size: 0.6rem; }
+
+        /* RIGHT */
+        .right-panel { display: flex; align-items: center; justify-content: center; padding: 2rem; background: var(--cream); }
+        .auth-box { width: 100%; max-width: 420px; }
+        .auth-header { margin-bottom: 1.75rem; }
+        .auth-header h2 { font-family: 'DM Serif Display', serif; font-size: 2rem; color: var(--ink); margin-bottom: 0.3rem; }
+        .auth-header p { color: var(--muted); font-size: 0.9rem; }
+
+        .tab-switcher { display: flex; background: #eceee8; border-radius: 12px; padding: 4px; margin-bottom: 1.75rem; }
+        .tab-btn { flex: 1; background: none; border: none; padding: 0.55rem 0.3rem; border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { background: white; color: var(--forest); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        .form-panel { display: none; }
+        .form-panel.active { display: block; animation: fadeUp 0.3s ease; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+        .field { margin-bottom: 1rem; }
+        .field label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--ink); margin-bottom: 0.4rem; }
+        .input-wrap { position: relative; }
+        .input-wrap .il { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.82rem; pointer-events: none; }
+        .input-wrap input { width: 100%; padding: 0.72rem 2.6rem; border: 2px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.92rem; color: var(--ink); background: white; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+        .input-wrap input:focus { border-color: var(--leaf); box-shadow: 0 0 0 3px rgba(46,125,50,0.1); }
+        .toggle-pw { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.82rem; padding: 4px; }
+
+        .btn-main { width: 100%; padding: 0.82rem; background: var(--forest); color: white; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.25s; margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-main:hover { background: var(--leaf); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(46,125,50,0.3); }
+        .btn-main:disabled { opacity: 0.6; transform: none; cursor: not-allowed; }
+        .btn-secondary { width: 100%; padding: 0.7rem; background: transparent; color: var(--leaf); border: 2px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 500; cursor: pointer; margin-top: 0.65rem; transition: all 0.2s; }
+        .btn-secondary:hover { border-color: var(--leaf); background: rgba(46,125,50,0.05); }
+
+        .alert-box { padding: 0.7rem 1rem; border-radius: 9px; font-size: 0.86rem; margin-bottom: 1.1rem; display: none; line-height: 1.4; }
+        .alert-box.show { display: block; animation: fadeUp 0.2s ease; }
+        .alert-error   { background: #fdecea; border: 1px solid #f5c6c2; color: var(--error); }
+        .alert-success { background: #eafaf1; border: 1px solid #a9dfbf; color: var(--success); }
+        .alert-info    { background: #eaf4fb; border: 1px solid #aed6f1; color: var(--info); }
+
+        .hint { font-size: 0.74rem; color: var(--muted); margin-top: 0.3rem; }
+        .default-cred { background: rgba(46,125,50,0.07); border: 1px solid rgba(46,125,50,0.2); border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.8rem; color: var(--muted); margin-bottom: 1.1rem; }
+        .default-cred strong { color: var(--forest); }
+
+        .pw-strength { margin-top: 0.4rem; display: flex; gap: 4px; height: 3px; }
+        .pw-strength span { flex: 1; border-radius: 4px; background: var(--border); transition: background 0.3s; }
+        .pw-strength.weak span:nth-child(1) { background: #e74c3c; }
+        .pw-strength.fair span:nth-child(1),.pw-strength.fair span:nth-child(2) { background: var(--gold); }
+        .pw-strength.strong span { background: var(--success); }
+
+        .steps { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; align-items: center; }
+        .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
+        .step-dot.active { background: var(--leaf); width: 24px; border-radius: 4px; }
+        .step-dot.done { background: var(--lime); }
+
+        .token-reveal { background: #fffbea; border: 2px dashed var(--gold); border-radius: 10px; padding: 1rem; text-align: center; margin: 0.75rem 0 1.1rem; display: none; }
+        .token-reveal.show { display: block; }
+        .token-number { font-size: 2.2rem; font-weight: 700; letter-spacing: 0.3em; color: var(--forest); font-family: 'DM Serif Display', serif; }
+        .token-label { font-size: 0.74rem; color: var(--muted); margin-top: 4px; }
+
+        @media (max-width: 768px) {
+            body { grid-template-columns: 1fr; }
+            .left-panel { display: none; }
+            .right-panel { padding: 2rem 1.25rem; align-items: flex-start; padding-top: 3rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LEFT PANEL -->
+<div class="left-panel">
+    <div class="brand">
+        <div class="brand-icon">🌾</div>
+        <h1>Smart Market<br>Price Tracker</h1>
+        <p>AI-powered forecasting for rural Nigerian traders</p>
+    </div>
+    <div class="market-showcase">
+        <div class="market-cards">
+            <div class="mcard">
+                <div class="mcard-left"><span class="mcard-emoji">🍅</span><div><div class="mcard-name">Tomatoes</div><div class="mcard-sub">Benin City Market</div></div></div>
+                <div class="mcard-price"><div class="mcard-amount">₦92.50</div><span class="mcard-trend trend-up">↑ 4.2%</span></div>
+            </div>
+            <div class="mcard">
+                <div class="mcard-left"><span class="mcard-emoji">🌾</span><div><div class="mcard-name">Rice</div><div class="mcard-sub">Kano Market</div></div></div>
+                <div class="mcard-price"><div class="mcard-amount">₦285.00</div><span class="mcard-trend trend-dn">↓ 1.8%</span></div>
+            </div>
+            <div class="mcard">
+                <div class="mcard-left"><span class="mcard-emoji">🧅</span><div><div class="mcard-name">Onions</div><div class="mcard-sub">Lagos Island</div></div></div>
+                <div class="mcard-price"><div class="mcard-amount">₦154.00</div><span class="mcard-trend trend-up">↑ 7.6%</span></div>
+            </div>
+            <div class="mcard">
+                <div class="mcard-left"><span class="mcard-emoji">🫘</span><div><div class="mcard-name">Beans</div><div class="mcard-sub">Ibadan Market</div></div></div>
+                <div class="mcard-price"><div class="mcard-amount">₦420.00</div><span class="mcard-trend trend-up">↑ 2.1%</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="uml-strip">
+        <p>System capabilities</p>
+        <div class="use-cases">
+            <span class="uc-pill"><i class="fas fa-circle"></i> Login</span>
+            <span class="uc-pill"><i class="fas fa-circle"></i> Register</span>
+            <span class="uc-pill"><i class="fas fa-circle"></i> Track Price</span>
+            <span class="uc-pill"><i class="fas fa-circle"></i> Forecast Price</span>
+            <span class="uc-pill"><i class="fas fa-circle"></i> View Dashboard</span>
+            <span class="uc-pill"><i class="fas fa-circle"></i> Manage Users</span>
+            <span class="uc-pill"><i class="fas fa-circle"></i> Volatility Alerts</span>
+        </div>
+    </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right-panel">
+    <div class="auth-box">
+        <div class="auth-header">
+            <h2 id="panelTitle">Welcome back</h2>
+            <p id="panelSub">Sign in to access your market dashboard</p>
+        </div>
+
+        <div class="tab-switcher">
+            <button class="tab-btn active" onclick="switchTab('login')">Sign In</button>
+            <button class="tab-btn" onclick="switchTab('register')">Register</button>
+            <button class="tab-btn" onclick="switchTab('forgot')">Reset Password</button>
+        </div>
+
+        <!-- LOGIN -->
+        <div class="form-panel active" id="panel-login">
+            <div class="default-cred"><i class="fas fa-info-circle"></i> Default admin — <strong>admin</strong> / <strong>admin123</strong></div>
+            <div class="alert-box" id="loginAlert"></div>
+            <div class="field">
+                <label>Username or Email</label>
+                <div class="input-wrap">
+                    <i class="fas fa-user il"></i>
+                    <input type="text" id="loginUser" placeholder="Enter username or email" autocomplete="username">
+                </div>
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock il"></i>
+                    <input type="password" id="loginPw" placeholder="Your password" autocomplete="current-password">
+                    <button class="toggle-pw" type="button" onclick="togglePw('loginPw',this)"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <button class="btn-main" id="loginBtn" onclick="doLogin()"><i class="fas fa-sign-in-alt"></i> Sign In</button>
+            <button class="btn-secondary" onclick="switchTab('forgot')">Forgot password?</button>
+        </div>
+
+        <!-- REGISTER -->
+        <div class="form-panel" id="panel-register">
+            <div class="alert-box" id="regAlert"></div>
+            <div class="field">
+                <label>Username</label>
+                <div class="input-wrap">
+                    <i class="fas fa-user il"></i>
+                    <input type="text" id="regUser" placeholder="Choose a username" autocomplete="username">
+                </div>
+                <p class="hint">Minimum 3 characters, no spaces</p>
+            </div>
+            <div class="field">
+                <label>Email Address</label>
+                <div class="input-wrap">
+                    <i class="fas fa-envelope il"></i>
+                    <input type="email" id="regEmail" placeholder="your@email.com" autocomplete="email">
+                </div>
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock il"></i>
+                    <input type="password" id="regPw" placeholder="Min. 6 characters" oninput="checkStrength(this.value)" autocomplete="new-password">
+                    <button class="toggle-pw" type="button" onclick="togglePw('regPw',this)"><i class="fas fa-eye"></i></button>
+                </div>
+                <div class="pw-strength" id="pwStrength"><span></span><span></span><span></span></div>
+            </div>
+            <div class="field">
+                <label>Confirm Password</label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock il"></i>
+                    <input type="password" id="regPwConfirm" placeholder="Repeat password" autocomplete="new-password">
+                    <button class="toggle-pw" type="button" onclick="togglePw('regPwConfirm',this)"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <button class="btn-main" id="regBtn" onclick="doRegister()"><i class="fas fa-user-plus"></i> Create Account</button>
+        </div>
+
+        <!-- FORGOT PASSWORD -->
+        <div class="form-panel" id="panel-forgot">
+            <div class="steps">
+                <div class="step-dot active" id="s1"></div>
+                <div class="step-dot" id="s2"></div>
+                <div class="step-dot" id="s3"></div>
+            </div>
+            <div class="alert-box" id="forgotAlert"></div>
+
+            <!-- Step 1 -->
+            <div id="fStep1">
+                <p style="font-size:.87rem;color:var(--muted);margin-bottom:1.1rem;">Enter your registered email and we'll generate a 6-digit reset token.</p>
+                <div class="field">
+                    <label>Email Address</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-envelope il"></i>
+                        <input type="email" id="forgotEmail" placeholder="your@email.com">
+                    </div>
+                </div>
+                <button class="btn-main" id="forgotBtn" onclick="doForgot()"><i class="fas fa-paper-plane"></i> Get Reset Token</button>
+            </div>
+
+            <!-- Step 2 -->
+            <div id="fStep2" style="display:none;">
+                <div class="token-reveal" id="tokenReveal">
+                    <div class="token-label">Your 6-digit reset token (demo — normally emailed):</div>
+                    <div class="token-number" id="tokenDisplay">——</div>
+                    <div class="token-label">Valid for 15 minutes</div>
+                </div>
+                <div class="field">
+                    <label>Reset Token</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-key il"></i>
+                        <input type="text" id="resetToken" placeholder="6-digit token" maxlength="6" style="letter-spacing:.2em;font-weight:600;">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>New Password</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-lock il"></i>
+                        <input type="password" id="resetPw" placeholder="Min. 6 characters" autocomplete="new-password">
+                        <button class="toggle-pw" type="button" onclick="togglePw('resetPw',this)"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Confirm New Password</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-lock il"></i>
+                        <input type="password" id="resetPwConfirm" placeholder="Repeat new password">
+                    </div>
+                </div>
+                <button class="btn-main" id="resetBtn" onclick="doReset()"><i class="fas fa-check-circle"></i> Reset Password</button>
+                <button class="btn-secondary" onclick="goStep(1)">← Try different email</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const TITLES = {
+        login:    ['Welcome back', 'Sign in to access your market dashboard'],
+        register: ['Create account', 'Join to track and forecast commodity prices'],
+        forgot:   ['Reset password', 'Recover access to your account']
+    };
+
+    function switchTab(name) {
+        document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach((b, i) => {
+            b.classList.toggle('active', ['login','register','forgot'][i] === name);
+        });
+        document.getElementById('panel-' + name).classList.add('active');
+        document.getElementById('panelTitle').textContent = TITLES[name][0];
+        document.getElementById('panelSub').textContent   = TITLES[name][1];
+        document.querySelectorAll('.alert-box').forEach(a => { a.className='alert-box'; a.textContent=''; });
+    }
+
+    function togglePw(id, btn) {
+        const inp = document.getElementById(id);
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+        btn.querySelector('i').classList.toggle('fa-eye');
+        btn.querySelector('i').classList.toggle('fa-eye-slash');
+    }
+
+    function checkStrength(val) {
+        const bar = document.getElementById('pwStrength');
+        bar.className = 'pw-strength';
+        if (!val) return;
+        const score = (val.length >= 8 ? 1 : 0) + (/[A-Z]/.test(val) || /\d/.test(val) ? 1 : 0) + (/[^A-Za-z0-9]/.test(val) ? 1 : 0);
+        if (score === 1) bar.classList.add('weak');
+        else if (score === 2) bar.classList.add('fair');
+        else bar.classList.add('strong');
+    }
+
+    function showAlert(id, msg, type) {
+        const el = document.getElementById(id);
+        el.className = `alert-box alert-${type} show`;
+        el.innerHTML = msg;
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const active = document.querySelector('.form-panel.active');
+        if (active?.id === 'panel-login') doLogin();
+        if (active?.id === 'panel-register') doRegister();
+    });
+
+    /* LOGIN */
+    async function doLogin() {
+        const username = document.getElementById('loginUser').value.trim();
+        const password = document.getElementById('loginPw').value;
+        const btn = document.getElementById('loginBtn');
+        if (!username || !password) { showAlert('loginAlert','Please fill in all fields.','error'); return; }
+        setLoading(btn, true, 'Signing in…');
+        try {
+            const res = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({username, password}) });
+            const data = await res.json();
+            if (res.ok) {
+                showAlert('loginAlert','<i class="fas fa-check-circle"></i> Login successful! Redirecting…','success');
+                setTimeout(() => { window.location.href = data.user.role === 'admin' ? '/admin' : '/'; }, 700);
+            } else {
+                showAlert('loginAlert',`<i class="fas fa-times-circle"></i> ${data.error}`,'error');
+                setLoading(btn, false, '<i class="fas fa-sign-in-alt"></i> Sign In');
+            }
+        } catch { showAlert('loginAlert','Server error. Please try again.','error'); setLoading(btn, false, '<i class="fas fa-sign-in-alt"></i> Sign In'); }
+    }
+
+    /* REGISTER */
+    async function doRegister() {
+        const username = document.getElementById('regUser').value.trim();
+        const email    = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPw').value;
+        const confirm  = document.getElementById('regPwConfirm').value;
+        const btn = document.getElementById('regBtn');
+        if (!username || !email || !password || !confirm) { showAlert('regAlert','Please fill in all fields.','error'); return; }
+        if (username.length < 3)   { showAlert('regAlert','Username must be at least 3 characters.','error'); return; }
+        if (password.length < 6)   { showAlert('regAlert','Password must be at least 6 characters.','error'); return; }
+        if (password !== confirm)  { showAlert('regAlert','Passwords do not match.','error'); return; }
+        setLoading(btn, true, 'Creating account…');
+        try {
+            const res = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({username, email, password, confirm_password: confirm}) });
+            const data = await res.json();
+            if (res.ok) {
+                showAlert('regAlert',`<i class="fas fa-check-circle"></i> ${data.message}`,'success');
+                ['regUser','regEmail','regPw','regPwConfirm'].forEach(id => document.getElementById(id).value='');
+                document.getElementById('pwStrength').className = 'pw-strength';
+                setTimeout(() => switchTab('login'), 2200);
+            } else {
+                showAlert('regAlert',`<i class="fas fa-times-circle"></i> ${data.error}`,'error');
+            }
+        } catch { showAlert('regAlert','Server error. Please try again.','error'); }
+        finally { setLoading(btn, false, '<i class="fas fa-user-plus"></i> Create Account'); }
+    }
+
+    /* FORGOT PASSWORD */
+    let forgotEmail = '';
+
+    async function doForgot() {
+        const email = document.getElementById('forgotEmail').value.trim();
+        const btn = document.getElementById('forgotBtn');
+        if (!email) { showAlert('forgotAlert','Please enter your email.','error'); return; }
+        setLoading(btn, true, 'Sending…');
+        try {
+            const res = await fetch('/api/auth/forgot_password', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({email}) });
+            const data = await res.json();
+            if (res.ok) {
+                forgotEmail = email;
+                document.getElementById('forgotAlert').className = 'alert-box'; // clear
+                goStep(2);
+                if (data.demo_token) {
+                    document.getElementById('tokenDisplay').textContent = data.demo_token;
+                    document.getElementById('tokenReveal').classList.add('show');
+                    showAlert('forgotAlert',`<i class="fas fa-info-circle"></i> ${data.note}`,'info');
+                } else {
+                    showAlert('forgotAlert',`<i class="fas fa-check-circle"></i> ${data.message}`,'success');
+                }
+            } else { showAlert('forgotAlert',`<i class="fas fa-times-circle"></i> ${data.error}`,'error'); }
+        } catch { showAlert('forgotAlert','Server error. Please try again.','error'); }
+        finally { setLoading(btn, false, '<i class="fas fa-paper-plane"></i> Get Reset Token'); }
+    }
+
+    async function doReset() {
+        const token  = document.getElementById('resetToken').value.trim();
+        const newPw  = document.getElementById('resetPw').value;
+        const confirm= document.getElementById('resetPwConfirm').value;
+        const btn = document.getElementById('resetBtn');
+        if (!token || !newPw || !confirm) { showAlert('forgotAlert','Please fill in all fields.','error'); return; }
+        if (newPw.length < 6)  { showAlert('forgotAlert','Password must be at least 6 characters.','error'); return; }
+        if (newPw !== confirm) { showAlert('forgotAlert','Passwords do not match.','error'); return; }
+        setLoading(btn, true, 'Resetting…');
+        try {
+            const res = await fetch('/api/auth/reset_password', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({email: forgotEmail, token, new_password: newPw, confirm_password: confirm}) });
+            const data = await res.json();
+            if (res.ok) {
+                goStep(3);
+                showAlert('forgotAlert',`<i class="fas fa-check-circle"></i> ${data.message}`,'success');
+                setTimeout(() => switchTab('login'), 2500);
+            } else { showAlert('forgotAlert',`<i class="fas fa-times-circle"></i> ${data.error}`,'error'); }
+        } catch { showAlert('forgotAlert','Server error. Please try again.','error'); }
+        finally { setLoading(btn, false, '<i class="fas fa-check-circle"></i> Reset Password'); }
+    }
+
+    function goStep(n) {
+        document.getElementById('fStep1').style.display = n === 1 ? 'block' : 'none';
+        document.getElementById('fStep2').style.display = n === 2 ? 'block' : 'none';
+        [1,2,3].forEach(i => {
+            document.getElementById('s'+i).className = 'step-dot' + (i===n?' active': i<n?' done':'');
+        });
+        if (n === 1) { document.getElementById('tokenReveal').classList.remove('show'); forgotEmail = ''; }
+    }
+
+    function setLoading(btn, loading, label) {
+        btn.disabled = loading;
+        btn.innerHTML = loading ? `<i class="fas fa-spinner fa-spin"></i> ${label}` : label;
+    }
+</script>
+</body>
+</html>

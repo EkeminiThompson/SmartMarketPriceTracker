@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel – Smart Market Price Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2e7d32;
+            --secondary: #558b2f;
+            --accent: #ff6f00;
+            --bg: #f1f8e9;
+        }
+        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; }
+        .navbar { background: linear-gradient(135deg, #1b5e20, #33691e); box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .sidebar { background: white; min-height: calc(100vh - 56px); border-right: 1px solid #ddd; padding-top: 1.5rem; }
+        .sidebar .nav-link { color: #555; border-radius: 8px; margin: 2px 8px; padding: 0.65rem 1rem; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: var(--bg); color: var(--primary); font-weight: 600; }
+        .sidebar .nav-link i { width: 20px; }
+        .stat-card { background: white; border-radius: 15px; padding: 1.5rem; box-shadow: 0 3px 12px rgba(0,0,0,0.07); }
+        .stat-value { font-size: 2rem; font-weight: bold; color: var(--primary); }
+        .table { background: white; border-radius: 12px; overflow: hidden; }
+        .table thead th { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border: none; padding: 0.9rem 1rem; }
+        .table tbody tr:hover { background: #f9fbe7; }
+        .badge-admin { background: #e53935; }
+        .badge-user { background: var(--primary); }
+        .badge-active { background: #43a047; }
+        .badge-inactive { background: #757575; }
+        .btn-sm { border-radius: 8px; }
+        .modal-header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+        .modal-header .btn-close { filter: invert(1); }
+        .form-control, .form-select { border-radius: 8px; border: 2px solid #e0e0e0; }
+        .form-control:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(46,125,50,0.15); }
+        .section-panel { display: none; }
+        .section-panel.active { display: block; }
+        #toastContainer { position: fixed; top: 70px; right: 20px; z-index: 9999; }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="/"><i class="fas fa-seedling me-2"></i>Market Tracker</a>
+        <div class="ms-auto d-flex align-items-center gap-3">
+            <span class="text-white opacity-75" id="navUsername"></span>
+            <a href="/" class="btn btn-outline-light btn-sm"><i class="fas fa-chart-line me-1"></i>Dashboard</a>
+            <button class="btn btn-outline-warning btn-sm" onclick="doLogout()"><i class="fas fa-sign-out-alt me-1"></i>Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-2 sidebar p-0">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="showSection('overview')">
+                        <i class="fas fa-tachometer-alt me-2"></i>Overview
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showSection('users')">
+                        <i class="fas fa-users me-2"></i>Users
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showSection('commodities')">
+                        <i class="fas fa-seedling me-2"></i>Commodities
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showSection('activity')">
+                        <i class="fas fa-history me-2"></i>Activity Log
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main -->
+        <div class="col-md-10 p-4">
+
+            <!-- Overview -->
+            <div id="section-overview" class="section-panel active">
+                <h4 class="mb-4 fw-bold"><i class="fas fa-tachometer-alt me-2 text-success"></i>Admin Overview</h4>
+                <div class="row g-3 mb-4" id="statsRow">
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Total Users</div><div class="stat-value" id="statTotal">–</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Active Users</div><div class="stat-value" id="statActive">–</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Admins</div><div class="stat-value" id="statAdmins">–</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Commodities</div><div class="stat-value" id="statCommodities">–</div></div></div>
+                </div>
+                <h5 class="fw-bold mb-3">Recent Activity</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>User</th><th>Action</th><th>Details</th><th>Time</th></tr></thead>
+                        <tbody id="recentActivity"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Users -->
+            <div id="section-users" class="section-panel">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold mb-0"><i class="fas fa-users me-2 text-success"></i>User Management</h4>
+                    <button class="btn btn-success" onclick="openCreateUser()">
+                        <i class="fas fa-user-plus me-2"></i>Add User
+                    </button>
+                </div>
+                <div class="mb-3">
+                    <input type="text" class="form-control" style="max-width:300px;" placeholder="🔍 Search users..." oninput="filterUsers(this.value)">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>#</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Last Login</th><th>Actions</th></tr></thead>
+                        <tbody id="usersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Commodities -->
+            <div id="section-commodities" class="section-panel">
+                <h4 class="fw-bold mb-4"><i class="fas fa-seedling me-2 text-success"></i>Commodity Management</h4>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>Commodity</th><th>Data Points</th><th>Latest Price</th><th>Actions</th></tr></thead>
+                        <tbody id="commoditiesTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div id="section-activity" class="section-panel">
+                <h4 class="fw-bold mb-4"><i class="fas fa-history me-2 text-success"></i>Full Activity Log</h4>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>User</th><th>Action</th><th>Details</th><th>IP</th><th>Time</th></tr></thead>
+                        <tbody id="activityTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toastContainer"></div>
+
+<!-- Create/Edit User Modal -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">Add User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Username *</label>
+                    <input type="text" class="form-control" id="editUsername" placeholder="Username">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Email *</label>
+                    <input type="email" class="form-control" id="editEmail" placeholder="Email address">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" id="pwLabel">Password *</label>
+                    <input type="password" class="form-control" id="editPassword" placeholder="Password (min 6 chars)">
+                    <div class="form-text" id="pwHint"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Role *</label>
+                    <select class="form-select" id="editRole">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="activeGroup">
+                    <label class="form-label fw-semibold">Status</label>
+                    <select class="form-select" id="editActive">
+                        <option value="1">Active</option>
+                        <option value="0">Inactive</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" id="saveUserBtn" onclick="saveUser()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Confirm Delete</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <p id="deleteMessage">Are you sure?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger btn-sm" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let allUsers = [];
+
+    async function init() {
+        const me = await fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json());
+        document.getElementById('navUsername').textContent = `👤 ${me.username} (Admin)`;
+        await loadStats();
+        await loadUsers();
+        await loadCommodities();
+    }
+
+    function showSection(name) {
+        document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+        document.getElementById('section-' + name).classList.add('active');
+        event.target.closest('.nav-link').classList.add('active');
+
+        if (name === 'activity') loadActivityLog();
+    }
+
+    async function loadStats() {
+        const data = await fetch('/api/admin/stats', { credentials: 'include' }).then(r => r.json());
+        document.getElementById('statTotal').textContent = data.total_users;
+        document.getElementById('statActive').textContent = data.active_users;
+        document.getElementById('statAdmins').textContent = data.admin_count;
+        document.getElementById('statCommodities').textContent = data.total_commodities;
+
+        const tbody = document.getElementById('recentActivity');
+        tbody.innerHTML = data.recent_activity.map(a => `
+            <tr>
+                <td><span class="fw-semibold">${a.username || '–'}</span></td>
+                <td><span class="badge bg-secondary">${a.action}</span></td>
+                <td class="text-muted small">${a.details || '–'}</td>
+                <td class="text-muted small">${formatDate(a.created_at)}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadUsers() {
+        const data = await fetch('/api/admin/users', { credentials: 'include' }).then(r => r.json());
+        allUsers = data.users;
+        renderUsers(allUsers);
+    }
+
+    function renderUsers(users) {
+        const tbody = document.getElementById('usersTable');
+        if (!users.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No users found</td></tr>'; return; }
+        tbody.innerHTML = users.map(u => `
+            <tr>
+                <td class="text-muted small">${u.id}</td>
+                <td><strong>${escHtml(u.username)}</strong></td>
+                <td class="text-muted">${escHtml(u.email)}</td>
+                <td><span class="badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role}</span></td>
+                <td><span class="badge ${u.is_active ? 'badge-active' : 'badge-inactive'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td class="text-muted small">${formatDate(u.created_at)}</td>
+                <td class="text-muted small">${u.last_login ? formatDate(u.last_login) : 'Never'}</td>
+                <td>
+                    <button class="btn btn-outline-primary btn-sm me-1" onclick="openEditUser(${u.id})"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteUser(${u.id}, '${escHtml(u.username)}')"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filterUsers(query) {
+        const q = query.toLowerCase();
+        renderUsers(allUsers.filter(u =>
+            u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.includes(q)
+        ));
+    }
+
+    function openCreateUser() {
+        document.getElementById('userModalTitle').textContent = 'Add New User';
+        document.getElementById('editUserId').value = '';
+        document.getElementById('editUsername').value = '';
+        document.getElementById('editEmail').value = '';
+        document.getElementById('editPassword').value = '';
+        document.getElementById('editRole').value = 'user';
+        document.getElementById('editActive').value = '1';
+        document.getElementById('pwLabel').textContent = 'Password *';
+        document.getElementById('pwHint').textContent = '';
+        document.getElementById('activeGroup').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('userModal')).show();
+    }
+
+    async function openEditUser(id) {
+        const u = await fetch(`/api/admin/users/${id}`, { credentials: 'include' }).then(r => r.json());
+        document.getElementById('userModalTitle').textContent = 'Edit User';
+        document.getElementById('editUserId').value = u.id;
+        document.getElementById('editUsername').value = u.username;
+        document.getElementById('editEmail').value = u.email;
+        document.getElementById('editPassword').value = '';
+        document.getElementById('editRole').value = u.role;
+        document.getElementById('editActive').value = u.is_active ? '1' : '0';
+        document.getElementById('pwLabel').textContent = 'New Password';
+        document.getElementById('pwHint').textContent = 'Leave blank to keep current password';
+        document.getElementById('activeGroup').style.display = 'block';
+        new bootstrap.Modal(document.getElementById('userModal')).show();
+    }
+
+    async function saveUser() {
+        const id = document.getElementById('editUserId').value;
+        const body = {
+            username: document.getElementById('editUsername').value.trim(),
+            email: document.getElementById('editEmail').value.trim(),
+            password: document.getElementById('editPassword').value,
+            role: document.getElementById('editRole').value,
+            is_active: document.getElementById('editActive').value === '1'
+        };
+
+        const url = id ? `/api/admin/users/${id}` : '/api/admin/users';
+        const method = id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            showToast(data.message, 'success');
+            loadUsers();
+            loadStats();
+        } else {
+            showToast(data.error, 'danger');
+        }
+    }
+
+    function confirmDeleteUser(id, username) {
+        document.getElementById('deleteMessage').innerHTML = `Delete user <strong>${username}</strong>? This cannot be undone.`;
+        const btn = document.getElementById('confirmDeleteBtn');
+        btn.onclick = () => deleteUser(id);
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    async function deleteUser(id) {
+        const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json();
+        bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+        if (res.ok) {
+            showToast(data.message, 'success');
+            loadUsers();
+            loadStats();
+        } else {
+            showToast(data.error, 'danger');
+        }
+    }
+
+    async function loadCommodities() {
+        const comms = await fetch('/api/commodities', { credentials: 'include' }).then(r => r.json());
+        const tbody = document.getElementById('commoditiesTable');
+        const rows = await Promise.all(comms.commodities.map(async c => {
+            const pd = await fetch(`/api/prices/${c}`, { credentials: 'include' }).then(r => r.json());
+            const prices = pd.data;
+            const latest = prices[prices.length - 1]?.price ?? '–';
+            return `<tr>
+                <td><strong>${escHtml(c)}</strong></td>
+                <td>${prices.length}</td>
+                <td>₦${parseFloat(latest).toFixed(2)}</td>
+                <td>
+                    <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteCommodity('${escHtml(c)}')">
+                        <i class="fas fa-trash me-1"></i>Delete
+                    </button>
+                </td>
+            </tr>`;
+        }));
+        tbody.innerHTML = rows.join('');
+    }
+
+    function confirmDeleteCommodity(name) {
+        document.getElementById('deleteMessage').innerHTML = `Delete all data for <strong>${name}</strong>? This cannot be undone.`;
+        const btn = document.getElementById('confirmDeleteBtn');
+        btn.onclick = () => deleteCommodity(name);
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    async function deleteCommodity(name) {
+        const res = await fetch('/api/admin/commodities', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ commodity: name })
+        });
+        const data = await res.json();
+        bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+        if (res.ok) {
+            showToast(data.message, 'success');
+            loadCommodities();
+            loadStats();
+        } else {
+            showToast(data.error, 'danger');
+        }
+    }
+
+    async function loadActivityLog() {
+        const data = await fetch('/api/admin/stats', { credentials: 'include' }).then(r => r.json());
+        const tbody = document.getElementById('activityTable');
+        tbody.innerHTML = data.recent_activity.map(a => `
+            <tr>
+                <td>${a.username || '–'}</td>
+                <td><span class="badge bg-secondary">${a.action}</span></td>
+                <td class="text-muted small">${a.details || '–'}</td>
+                <td class="text-muted small">${a.ip_address || '–'}</td>
+                <td class="text-muted small">${formatDate(a.created_at)}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function doLogout() {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        window.location.href = '/login';
+    }
+
+    function formatDate(iso) {
+        if (!iso) return '–';
+        return new Date(iso).toLocaleString('en-NG', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function escHtml(str) {
+        return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function showToast(msg, type = 'success') {
+        const id = 'toast_' + Date.now();
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = `alert alert-${type} shadow mb-2 py-2 px-3`;
+        el.style.cssText = 'min-width:250px; font-size:.9rem;';
+        el.innerHTML = msg;
+        document.getElementById('toastContainer').appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    init();
+</script>
+</body>
+</html>
