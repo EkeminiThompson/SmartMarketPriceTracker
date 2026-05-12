@@ -12,7 +12,13 @@ from functools import wraps
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress all TF logs
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Disable GPU (CPU only)
+
 import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
+
 from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
@@ -50,13 +56,16 @@ if not os.path.exists(MODELS_DIR):
 # ─────────────────────────────────────────────
 
 def get_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
     conn = get_db()
     c = conn.cursor()
+
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA synchronous=NORMAL')
 
     # Users table
     c.execute('''
