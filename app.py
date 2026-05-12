@@ -248,20 +248,50 @@ def build_lstm_model(lookback=20):
     return model
 
 def predict_arima(prices, forecast_days=30):
+    """
+    Train ARIMA model and return:
+      - out-of-sample forecast (list of floats)
+      - REAL test-set metrics: RMSE, MAE, R², accuracy
+    Uses 80/20 train/test split for honest evaluation.
+    """
     try:
-        fitted   = ARIMA(prices, order=(3, 1, 0)).fit()
-        forecast = fitted.forecast(steps=forecast_days)
-        fitted_v = fitted.fittedvalues
-        actual   = np.array(prices)
-        n        = min(len(actual), len(fitted_v))
-        rmse     = float(np.sqrt(mean_squared_error(actual[-n:], fitted_v[-n:])))
-        mae      = float(mean_absolute_error(actual[-n:], fitted_v[-n:]))
+        if len(prices) < 30:
+            return None, None
+        
+        # ── 80/20 Train/Test Split ───────────────────────────────────────────
+        split_idx = int(len(prices) * 0.8)
+        train_prices = prices[:split_idx]
+        test_prices = prices[split_idx:]
+        
+        # ── Train ARIMA on 80% ──────────────────────────────────────────────
+        fitted = ARIMA(train_prices, order=(3, 1, 0)).fit()
+        
+        # ── Evaluate on TEST SET (20%) ───────────────────────────────────────
+        # Forecast the test period length
+        test_forecast = fitted.forecast(steps=len(test_prices))
+        test_actual = np.array(test_prices)
+        test_pred = np.array(test_forecast)
+        
+        # Import r2_score if not already available
+        from sklearn.metrics import r2_score
+        
+        rmse = float(np.sqrt(mean_squared_error(test_actual, test_pred)))
+        mae = float(mean_absolute_error(test_actual, test_pred))
+        r2 = float(r2_score(test_actual, test_pred))
         accuracy = float(round(100 - mae / np.mean(prices) * 100, 2))
+        
+        # ── Out-of-sample forecast (future predictions) ──────────────────────
+        # Re-train on ALL data for final forecast
+        final_fitted = ARIMA(prices, order=(3, 1, 0)).fit()
+        forecast = final_fitted.forecast(steps=forecast_days)
+        
         return forecast.tolist(), {
-            'rmse':     round(rmse, 2),
-            'mae':      round(mae,  2),
+            'rmse': round(rmse, 2),
+            'mae': round(mae, 2),
+            'r2': round(r2, 3),
             'accuracy': accuracy,
         }
+        
     except Exception as e:
         print(f"ARIMA Error: {e}")
         return None, None
@@ -270,8 +300,8 @@ def predict_lstm(prices, forecast_days=30, lookback=20):
     """
     Train a compact LSTM and return:
       - out-of-sample forecast (list of floats)
-      - REAL in-sample metrics: RMSE, MAE, accuracy
-    No more hardcoded zeros or fake accuracy values.
+      - REAL test-set metrics: RMSE, MAE, R², accuracy
+    Uses 80/20 train/test split for honest evaluation.
     """
     try:
         if len(prices) < lookback + 10:
@@ -287,16 +317,26 @@ def predict_lstm(prices, forecast_days=30, lookback=20):
         X, y, scaler = prepare_lstm_data(price_array, lookback)
         X3 = X.reshape(X.shape[0], X.shape[1], 1)
 
+        # ── 80/20 Train/Test Split ───────────────────────────────────────────
+        split_idx = int(len(X3) * 0.8)
+        X_train, X_test = X3[:split_idx], X3[split_idx:]
+        y_train, y_test = y[:split_idx], y[split_idx:]
+
+        # ── Train on 80% ─────────────────────────────────────────────────────
         model = build_lstm_model(lookback)
-        model.fit(X3, y, epochs=20, batch_size=16, verbose=0)
+        model.fit(X_train, y_train, epochs=20, batch_size=16, verbose=0)
 
-        # ── In-sample metrics (training window) ─────────────────────────────
-        train_pred_scaled   = model.predict(X3, verbose=0)
-        train_pred_unscaled = scaler.inverse_transform(train_pred_scaled).flatten()
-        y_unscaled          = scaler.inverse_transform(y.reshape(-1, 1)).flatten()
+        # ── Evaluate on TEST SET (20%) ───────────────────────────────────────
+        test_pred_scaled   = model.predict(X_test, verbose=0)
+        test_pred_unscaled = scaler.inverse_transform(test_pred_scaled).flatten()
+        y_test_unscaled    = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
 
-        rmse     = float(np.sqrt(mean_squared_error(y_unscaled, train_pred_unscaled)))
-        mae      = float(mean_absolute_error(y_unscaled, train_pred_unscaled))
+        # Import r2_score if not already available
+        from sklearn.metrics import r2_score
+        
+        rmse     = float(np.sqrt(mean_squared_error(y_test_unscaled, test_pred_unscaled)))
+        mae      = float(mean_absolute_error(y_test_unscaled, test_pred_unscaled))
+        r2       = float(r2_score(y_test_unscaled, test_pred_unscaled))
         accuracy = float(round(100 - mae / np.mean(prices) * 100, 2))
 
         # ── Out-of-sample forecast ───────────────────────────────────────────
@@ -312,6 +352,7 @@ def predict_lstm(prices, forecast_days=30, lookback=20):
         result = (predictions, {
             'rmse':     round(rmse, 2),
             'mae':      round(mae,  2),
+            'r2':       round(r2, 3),  # ← Now included!
             'accuracy': accuracy,
         })
 
