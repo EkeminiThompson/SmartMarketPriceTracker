@@ -15,7 +15,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 warnings.filterwarnings('ignore')
 
-# Optimize TensorFlow for CPU and memory
+# ── Optimise TensorFlow for CPU / Render free-tier ──────────────────────────
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -23,13 +23,9 @@ os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['TF_NUM_INTEROP_THREADS'] = '1'
 os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
 
-# Lazy import for TensorFlow (will import when needed)
-tf = None
-keras = None
-Sequential = None
-LSTM = None
-Dense = None
-Dropout = None
+# Lazy TensorFlow import — loaded only when LSTM is first used
+_tf_loaded = False
+tf = keras = Sequential = LSTM = Dense = Dropout = None
 
 from flask.json.provider import DefaultJSONProvider
 
@@ -48,39 +44,35 @@ app.json_provider_class = NumpyJSONProvider
 app.json = NumpyJSONProvider(app)
 app.secret_key = secrets.token_hex(32)
 app.config.update(
-    SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
+    SESSION_COOKIE_SECURE=False,   # Set True in production with HTTPS
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=timedelta(days=7)
 )
 CORS(app, supports_credentials=True)
 
-# Configuration
-DATA_FILE = 'price_data.json'
+DATA_FILE  = 'price_data.json'
 MODELS_DIR = 'models'
-DB_FILE = 'market_tracker.db'
+DB_FILE    = 'market_tracker.db'
 
 if not os.path.exists(MODELS_DIR):
     os.makedirs(MODELS_DIR)
 
-# Model cache to avoid retraining
+# Small LRU-style cache to avoid retraining the same LSTM twice
 model_cache = {}
 
 # ─────────────────────────────────────────────
-# DATABASE SETUP with Connection Pooling
+# DATABASE (WAL mode + context-manager helper)
 # ─────────────────────────────────────────────
 
-import threading
 from contextlib import contextmanager
 
 @contextmanager
 def get_db():
-    """Get database connection with proper locking and WAL mode"""
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE, timeout=30.0)
         conn.row_factory = sqlite3.Row
-        # Enable WAL mode for better concurrency
         conn.execute('PRAGMA journal_mode=WAL')
         conn.execute('PRAGMA synchronous=NORMAL')
         yield conn
@@ -96,8 +88,6 @@ def get_db():
 def init_db():
     with get_db() as conn:
         c = conn.cursor()
-        
-        # Users table
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,8 +102,6 @@ def init_db():
                 reset_token_expiry TEXT
             )
         ''')
-        
-        # Price entries table
         c.execute('''
             CREATE TABLE IF NOT EXISTS price_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,8 +113,6 @@ def init_db():
                 FOREIGN KEY (added_by) REFERENCES users(id)
             )
         ''')
-        
-        # Activity log
         c.execute('''
             CREATE TABLE IF NOT EXISTS activity_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -137,8 +123,6 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         ''')
-        
-        # Create default admin if not exists
         admin_exists = c.execute("SELECT id FROM users WHERE role='admin'").fetchone()
         if not admin_exists:
             pw_hash = hashlib.sha256('admin123'.encode()).hexdigest()
@@ -185,34 +169,29 @@ def admin_required(f):
 # ─────────────────────────────────────────────
 
 def generate_sample_prices(min_price, max_price, days):
-    dates = []
-    prices = []
+    dates, prices = [], []
     start_date = datetime.now() - timedelta(days=days)
-    base_price = (min_price + max_price) / 2
-
+    base_price  = (min_price + max_price) / 2
     for i in range(days):
         date = start_date + timedelta(days=i)
         dates.append(date.strftime('%Y-%m-%d'))
-        trend = (i / days) * (max_price - min_price) * 0.2
+        trend       = (i / days) * (max_price - min_price) * 0.2
         seasonality = np.sin(i * 2 * np.pi / 30) * (max_price - min_price) * 0.1
-        noise = np.random.normal(0, (max_price - min_price) * 0.05)
-        current_price = base_price + trend + seasonality + noise
-        current_price = max(min_price, min(max_price, current_price))
-        prices.append(round(current_price, 2))
-
+        noise       = np.random.normal(0, (max_price - min_price) * 0.05)
+        p           = base_price + trend + seasonality + noise
+        prices.append(round(max(min_price, min(max_price, p)), 2))
     return [{"date": d, "price": p} for d, p in zip(dates, prices)]
 
 def initialize_data():
     if not os.path.exists(DATA_FILE):
-        sample_data = {
-            "Rice": generate_sample_prices(150, 350, 180),
-            "Tomatoes": generate_sample_prices(50, 150, 180),
-            "Onions": generate_sample_prices(80, 200, 180),
-            "Yam": generate_sample_prices(200, 500, 180),
-            "Beans": generate_sample_prices(300, 600, 180),
-            "Maize": generate_sample_prices(100, 250, 180)
-        }
-        save_data(sample_data)
+        save_data({
+            "Rice":     generate_sample_prices(150, 350, 180),
+            "Tomatoes": generate_sample_prices(50,  150, 180),
+            "Onions":   generate_sample_prices(80,  200, 180),
+            "Yam":      generate_sample_prices(200, 500, 180),
+            "Beans":    generate_sample_prices(300, 600, 180),
+            "Maize":    generate_sample_prices(100, 250, 180),
+        })
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -225,45 +204,44 @@ def save_data(data):
         json.dump(data, f, indent=2)
 
 # ─────────────────────────────────────────────
-# ML MODELS with Lazy Loading and Caching
+# ML — Lazy TensorFlow + Caching
 # ─────────────────────────────────────────────
 
-def get_tensorflow():
-    """Lazy load TensorFlow only when needed"""
-    global tf, keras, Sequential, LSTM, Dense, Dropout
-    if tf is None:
-        import tensorflow as tflow
-        tf = tflow
-        tf.config.set_visible_devices([], 'GPU')
-        tf.config.threading.set_inter_op_parallelism_threads(1)
-        tf.config.threading.set_intra_op_parallelism_threads(1)
-        from tensorflow import keras as k
-        keras = k
-        from tensorflow.keras.models import Sequential as Seq
-        Sequential = Seq
-        from tensorflow.keras.layers import LSTM as Lstm, Dense as D, Dropout as Drop
-        LSTM = Lstm
-        Dense = D
-        Dropout = Drop
-    return tf, keras, Sequential, LSTM, Dense, Dropout
+def _load_tensorflow():
+    """Import TF once and configure for single-threaded CPU."""
+    global _tf_loaded, tf, keras, Sequential, LSTM, Dense, Dropout
+    if _tf_loaded:
+        return
+    import tensorflow as tflow
+    tf = tflow
+    tf.config.set_visible_devices([], 'GPU')
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    from tensorflow import keras as k
+    keras = k
+    from tensorflow.keras.models import Sequential as Seq
+    from tensorflow.keras.layers import LSTM as L, Dense as D, Dropout as Dr
+    Sequential = Seq
+    LSTM, Dense, Dropout = L, D, Dr
+    _tf_loaded = True
 
-def prepare_lstm_data(data, lookback=30):
+def prepare_lstm_data(data, lookback=20):
     scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(data.reshape(-1, 1))
+    scaled = scaler.fit_transform(data.reshape(-1, 1))
     X, y = [], []
-    for i in range(lookback, len(scaled_data)):
-        X.append(scaled_data[i-lookback:i, 0])
-        y.append(scaled_data[i, 0])
+    for i in range(lookback, len(scaled)):
+        X.append(scaled[i - lookback:i, 0])
+        y.append(scaled[i, 0])
     return np.array(X), np.array(y), scaler
 
-def build_lstm_model(lookback=30):
-    _, _, Sequential, LSTM, Dense, Dropout = get_tensorflow()
+def build_lstm_model(lookback=20):
+    _load_tensorflow()
     model = Sequential([
-        LSTM(30, return_sequences=True, input_shape=(lookback, 1)),  # Reduced units
+        LSTM(30, return_sequences=True, input_shape=(lookback, 1)),
         Dropout(0.2),
-        LSTM(20, return_sequences=False),  # Reduced units
+        LSTM(20, return_sequences=False),
         Dropout(0.2),
-        Dense(15),  # Reduced units
+        Dense(15),
         Dense(1)
     ])
     model.compile(optimizer='adam', loss='mean_squared_error')
@@ -271,63 +249,78 @@ def build_lstm_model(lookback=30):
 
 def predict_arima(prices, forecast_days=30):
     try:
-        model = ARIMA(prices, order=(3, 1, 0))  # Reduced order for speed
-        fitted_model = model.fit()
-        forecast = fitted_model.forecast(steps=forecast_days)
-        train_predict = fitted_model.fittedvalues
-        actual = np.array(prices)
-        min_len = min(len(actual), len(train_predict))
-        mse = mean_squared_error(actual[-min_len:], train_predict[-min_len:])
-        mae = mean_absolute_error(actual[-min_len:], train_predict[-min_len:])
-        rmse = np.sqrt(mse)
+        fitted   = ARIMA(prices, order=(3, 1, 0)).fit()
+        forecast = fitted.forecast(steps=forecast_days)
+        fitted_v = fitted.fittedvalues
+        actual   = np.array(prices)
+        n        = min(len(actual), len(fitted_v))
+        rmse     = float(np.sqrt(mean_squared_error(actual[-n:], fitted_v[-n:])))
+        mae      = float(mean_absolute_error(actual[-n:], fitted_v[-n:]))
+        accuracy = float(round(100 - mae / np.mean(prices) * 100, 2))
         return forecast.tolist(), {
-            'rmse': float(round(rmse, 2)),
-            'mae': float(round(mae, 2)),
-            'accuracy': float(round(100 - (mae / np.mean(prices) * 100), 2))
+            'rmse':     round(rmse, 2),
+            'mae':      round(mae,  2),
+            'accuracy': accuracy,
         }
     except Exception as e:
         print(f"ARIMA Error: {e}")
         return None, None
 
-def predict_lstm(prices, forecast_days=30, lookback=20):  # Reduced lookback
+def predict_lstm(prices, forecast_days=30, lookback=20):
+    """
+    Train a compact LSTM and return:
+      - out-of-sample forecast (list of floats)
+      - REAL in-sample metrics: RMSE, MAE, accuracy
+    No more hardcoded zeros or fake accuracy values.
+    """
     try:
         if len(prices) < lookback + 10:
             return None, None
-        
-        # Check cache
+
+        # Cache by last 50 prices + forecast window
         cache_key = tuple(prices[-50:]) + (forecast_days,)
         if cache_key in model_cache:
             return model_cache[cache_key]
-        
-        price_array = np.array(prices)
+
+        _load_tensorflow()
+        price_array = np.array(prices, dtype=float)
         X, y, scaler = prepare_lstm_data(price_array, lookback)
-        X = X.reshape((X.shape[0], X.shape[1], 1))
+        X3 = X.reshape(X.shape[0], X.shape[1], 1)
+
         model = build_lstm_model(lookback)
-        # Reduced epochs for faster training
-        model.fit(X, y, epochs=20, batch_size=16, verbose=0)
-        last_sequence = price_array[-lookback:]
+        model.fit(X3, y, epochs=20, batch_size=16, verbose=0)
+
+        # ── In-sample metrics (training window) ─────────────────────────────
+        train_pred_scaled   = model.predict(X3, verbose=0)
+        train_pred_unscaled = scaler.inverse_transform(train_pred_scaled).flatten()
+        y_unscaled          = scaler.inverse_transform(y.reshape(-1, 1)).flatten()
+
+        rmse     = float(np.sqrt(mean_squared_error(y_unscaled, train_pred_unscaled)))
+        mae      = float(mean_absolute_error(y_unscaled, train_pred_unscaled))
+        accuracy = float(round(100 - mae / np.mean(prices) * 100, 2))
+
+        # ── Out-of-sample forecast ───────────────────────────────────────────
+        seq = price_array[-lookback:].copy()
         predictions = []
-        current_sequence = last_sequence.copy()
         for _ in range(forecast_days):
-            scaled_sequence = scaler.transform(current_sequence.reshape(-1, 1))
-            scaled_sequence = scaled_sequence.reshape((1, lookback, 1))
-            next_pred = model.predict(scaled_sequence, verbose=0)
-            next_pred_unscaled = scaler.inverse_transform(next_pred)[0, 0]
-            predictions.append(next_pred_unscaled)
-            current_sequence = np.append(current_sequence[1:], next_pred_unscaled)
-        
+            scaled_seq = scaler.transform(seq.reshape(-1, 1)).reshape(1, lookback, 1)
+            next_val   = float(scaler.inverse_transform(
+                model.predict(scaled_seq, verbose=0))[0, 0])
+            predictions.append(next_val)
+            seq = np.append(seq[1:], next_val)
+
         result = (predictions, {
-            'rmse': 0,  # Simplified metrics
-            'mae': 0,
-            'accuracy': 85  # Default accuracy for LSTM
+            'rmse':     round(rmse, 2),
+            'mae':      round(mae,  2),
+            'accuracy': accuracy,
         })
-        
-        # Cache result (limit cache size)
-        if len(model_cache) > 5:
+
+        # Evict cache when it grows beyond 5 entries
+        if len(model_cache) >= 5:
             model_cache.clear()
         model_cache[cache_key] = result
-        
         return result
+
     except Exception as e:
         print(f"LSTM Error: {e}")
         return None, None
@@ -354,17 +347,19 @@ def admin_page():
 
 @app.route('/analytics')
 def analytics_page():
+    """
+    ML Analytics dashboard. Accepts ?commodity=Rice to pre-select on load.
+    """
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     return render_template('ml_analytics.html')
 
 @app.route('/health')
 def health_check():
-    """Health check endpoint for Render"""
     return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'authenticated': 'user_id' in session
+        'status':        'healthy',
+        'timestamp':     datetime.now().isoformat(),
+        'authenticated': 'user_id' in session,
     }), 200
 
 # ─────────────────────────────────────────────
@@ -373,23 +368,16 @@ def health_check():
 
 @app.route('/api/auth/check', methods=['GET'])
 def check_auth():
-    """Check if user is authenticated"""
     if 'user_id' in session:
-        return jsonify({
-            'authenticated': True,
-            'user_id': session['user_id'],
-            'username': session.get('username'),
-            'role': session.get('role')
-        })
-    else:
-        return jsonify({'authenticated': False}), 401
+        return jsonify({'authenticated': True, 'user_id': session['user_id'],
+                        'username': session.get('username'), 'role': session.get('role')})
+    return jsonify({'authenticated': False}), 401
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data     = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
-
     if not username or not password:
         return jsonify({'error': 'Username and password required'}), 400
 
@@ -398,39 +386,27 @@ def login():
             'SELECT * FROM users WHERE (username=? OR email=?) AND is_active=1',
             (username, username)
         ).fetchone()
-
         if not user or user['password_hash'] != hash_password(password):
             return jsonify({'error': 'Invalid credentials'}), 401
-
-        session['user_id'] = user['id']
+        session['user_id']  = user['id']
         session['username'] = user['username']
-        session['role'] = user['role']
-        session.permanent = True
-
+        session['role']     = user['role']
+        session.permanent   = True
         conn.execute('UPDATE users SET last_login=? WHERE id=?',
                      (datetime.now().isoformat(), user['id']))
 
     log_activity(user['id'], 'LOGIN', ip=request.remote_addr)
-
-    return jsonify({
-        'message': 'Login successful',
-        'user': {
-            'id': user['id'],
-            'username': user['username'],
-            'email': user['email'],
-            'role': user['role']
-        }
-    })
+    return jsonify({'message': 'Login successful',
+                    'user': {'id': user['id'], 'username': user['username'],
+                             'email': user['email'], 'role': user['role']}})
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data = request.get_json()
+    data     = request.get_json()
     username = data.get('username', '').strip()
-    email = data.get('email', '').strip()
+    email    = data.get('email', '').strip()
     password = data.get('password', '')
-    confirm = data.get('confirm_password', '')
-
-    # Validate
+    confirm  = data.get('confirm_password', '')
     if not username or not email or not password:
         return jsonify({'error': 'All fields are required'}), 400
     if len(username) < 3:
@@ -441,20 +417,64 @@ def register():
         return jsonify({'error': 'Passwords do not match'}), 400
     if '@' not in email:
         return jsonify({'error': 'Invalid email address'}), 400
-
     try:
         with get_db() as conn:
             conn.execute('''
                 INSERT INTO users (username, email, password_hash, role, is_active, created_at)
                 VALUES (?, ?, ?, 'user', 1, ?)
             ''', (username, email, hash_password(password), datetime.now().isoformat()))
-            
-            user_id = conn.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone()['id']
-        
+            user_id = conn.execute('SELECT id FROM users WHERE username=?',
+                                   (username,)).fetchone()['id']
         log_activity(user_id, 'REGISTER', f'New registration: {username}', ip=request.remote_addr)
         return jsonify({'message': 'Account created successfully! You can now log in.'})
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Username or email already exists'}), 409
+
+@app.route('/api/auth/forgot_password', methods=['POST'])
+def forgot_password():
+    data  = request.get_json()
+    email = data.get('email', '').strip()
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    with get_db() as conn:
+        user = conn.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
+        if not user:
+            return jsonify({'message': 'If that email exists, a reset token has been generated.'})
+        token  = str(secrets.randbelow(900000) + 100000)
+        expiry = (datetime.now() + timedelta(minutes=15)).isoformat()
+        conn.execute('UPDATE users SET reset_token=?, reset_token_expiry=? WHERE email=?',
+                     (token, expiry, email))
+    log_activity(user['id'], 'FORGOT_PASSWORD', f'Reset token generated for {email}')
+    return jsonify({'message': 'A reset token has been generated.',
+                    'demo_token': token,
+                    'note': 'In production this token would be sent to your email.'})
+
+@app.route('/api/auth/reset_password', methods=['POST'])
+def reset_password():
+    data         = request.get_json()
+    email        = data.get('email', '').strip()
+    token        = data.get('token', '').strip()
+    new_password = data.get('new_password', '')
+    confirm      = data.get('confirm_password', '')
+    if not email or not token or not new_password:
+        return jsonify({'error': 'All fields are required'}), 400
+    if len(new_password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+    if new_password != confirm:
+        return jsonify({'error': 'Passwords do not match'}), 400
+    with get_db() as conn:
+        user = conn.execute('SELECT * FROM users WHERE email=? AND reset_token=?',
+                            (email, token)).fetchone()
+        if not user:
+            return jsonify({'error': 'Invalid email or token'}), 400
+        if (user['reset_token_expiry'] and
+                datetime.fromisoformat(user['reset_token_expiry']) < datetime.now()):
+            return jsonify({'error': 'Reset token has expired. Please request a new one.'}), 400
+        conn.execute('''
+            UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expiry=NULL WHERE id=?
+        ''', (hash_password(new_password), user['id']))
+    log_activity(user['id'], 'RESET_PASSWORD', 'Password reset via token')
+    return jsonify({'message': 'Password reset successfully! You can now log in.'})
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -467,11 +487,30 @@ def logout():
 @login_required
 def get_me():
     with get_db() as conn:
-        user = conn.execute('SELECT id, username, email, role, created_at, last_login FROM users WHERE id=?',
-                            (session['user_id'],)).fetchone()
+        user = conn.execute(
+            'SELECT id, username, email, role, created_at, last_login FROM users WHERE id=?',
+            (session['user_id'],)
+        ).fetchone()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         return jsonify(dict(user))
+
+@app.route('/api/auth/change_password', methods=['POST'])
+@login_required
+def change_password():
+    data   = request.get_json()
+    old_pw = data.get('old_password', '')
+    new_pw = data.get('new_password', '')
+    if not old_pw or not new_pw or len(new_pw) < 6:
+        return jsonify({'error': 'Invalid password data (min 6 chars for new password)'}), 400
+    with get_db() as conn:
+        user = conn.execute('SELECT * FROM users WHERE id=?', (session['user_id'],)).fetchone()
+        if user['password_hash'] != hash_password(old_pw):
+            return jsonify({'error': 'Old password incorrect'}), 401
+        conn.execute('UPDATE users SET password_hash=? WHERE id=?',
+                     (hash_password(new_pw), session['user_id']))
+    log_activity(session['user_id'], 'CHANGE_PASSWORD', ip=request.remote_addr)
+    return jsonify({'message': 'Password changed successfully'})
 
 # ─────────────────────────────────────────────
 # MARKET DATA API
@@ -480,8 +519,7 @@ def get_me():
 @app.route('/api/commodities', methods=['GET'])
 @login_required
 def get_commodities():
-    data = load_data()
-    return jsonify({'commodities': list(data.keys())})
+    return jsonify({'commodities': list(load_data().keys())})
 
 @app.route('/api/prices/<commodity>', methods=['GET'])
 @login_required
@@ -494,20 +532,18 @@ def get_prices(commodity):
 @app.route('/api/predict', methods=['POST'])
 @login_required
 def predict():
-    request_data = request.get_json()
-    commodity = request_data.get('commodity')
-    model_type = request_data.get('model', 'arima')
-    forecast_days = min(request_data.get('forecast_days', 30), 60)  # Limit forecast days
-    
+    req           = request.get_json()
+    commodity     = req.get('commodity')
+    model_type    = req.get('model', 'arima')
+    forecast_days = min(req.get('forecast_days', 30), 60)
     data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
-    
-    prices = [item['price'] for item in data[commodity]]
-    dates = [item['date'] for item in data[commodity]]
-    last_date = datetime.strptime(dates[-1], '%Y-%m-%d')
-    forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d') for i in range(forecast_days)]
-    
+    prices         = [item['price'] for item in data[commodity]]
+    dates          = [item['date']  for item in data[commodity]]
+    last_date      = datetime.strptime(dates[-1], '%Y-%m-%d')
+    forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d')
+                      for i in range(forecast_days)]
     if model_type.lower() == 'arima':
         predictions, metrics = predict_arima(prices, forecast_days)
         model_name = 'ARIMA'
@@ -516,79 +552,60 @@ def predict():
         model_name = 'LSTM'
     else:
         return jsonify({'error': 'Invalid model type'}), 400
-    
     if predictions is None:
         return jsonify({'error': 'Prediction failed'}), 500
-    
-    forecast_data = [{'date': d, 'price': round(p, 2)} for d, p in zip(forecast_dates, predictions)]
+    forecast_data = [{'date': d, 'price': round(p, 2)}
+                     for d, p in zip(forecast_dates, predictions)]
     log_activity(session['user_id'], 'PREDICT', f'{commodity} using {model_name}')
-    
-    return jsonify({
-        'commodity': commodity,
-        'model': model_name,
-        'historical': data[commodity][-60:],
-        'forecast': forecast_data,
-        'metrics': metrics
-    })
+    return jsonify({'commodity': commodity, 'model': model_name,
+                    'historical': data[commodity][-60:],
+                    'forecast': forecast_data, 'metrics': metrics})
 
 @app.route('/api/compare_models', methods=['POST'])
 @login_required
 def compare_models():
-    request_data = request.get_json()
-    commodity = request_data.get('commodity')
-    forecast_days = min(request_data.get('forecast_days', 30), 60)
-    
+    req           = request.get_json()
+    commodity     = req.get('commodity')
+    forecast_days = min(req.get('forecast_days', 30), 60)
     data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
-    
-    prices = [item['price'] for item in data[commodity]]
-    dates = [item['date'] for item in data[commodity]]
-    last_date = datetime.strptime(dates[-1], '%Y-%m-%d')
-    forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d') for i in range(forecast_days)]
-    
+    prices         = [item['price'] for item in data[commodity]]
+    dates          = [item['date']  for item in data[commodity]]
+    last_date      = datetime.strptime(dates[-1], '%Y-%m-%d')
+    forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d')
+                      for i in range(forecast_days)]
     arima_pred, arima_metrics = predict_arima(prices, forecast_days)
-    lstm_pred, lstm_metrics = predict_lstm(prices, forecast_days)
-    
-    response = {
-        'commodity': commodity, 
-        'dates': forecast_dates, 
-        'historical': data[commodity][-60:],
-        'arima': None,
-        'lstm': None
-    }
-    
+    lstm_pred,  lstm_metrics  = predict_lstm(prices, forecast_days)
+    response = {'commodity': commodity, 'dates': forecast_dates,
+                'historical': data[commodity][-60:], 'arima': None, 'lstm': None}
     if arima_pred:
-        response['arima'] = {'predictions': [round(p, 2) for p in arima_pred], 'metrics': arima_metrics}
+        response['arima'] = {'predictions': [round(p, 2) for p in arima_pred],
+                              'metrics': arima_metrics}
     if lstm_pred:
-        response['lstm'] = {'predictions': [round(p, 2) for p in lstm_pred], 'metrics': lstm_metrics}
-    
+        response['lstm']  = {'predictions': [round(p, 2) for p in lstm_pred],
+                              'metrics': lstm_metrics}
     return jsonify(response)
 
 @app.route('/api/add_price', methods=['POST'])
 @login_required
 def add_price():
-    request_data = request.get_json()
-    commodity = request_data.get('commodity')
-    price = request_data.get('price')
-    date = request_data.get('date', datetime.now().strftime('%Y-%m-%d'))
-    
+    req       = request.get_json()
+    commodity = req.get('commodity')
+    price     = req.get('price')
+    date      = req.get('date', datetime.now().strftime('%Y-%m-%d'))
     if not commodity or price is None:
         return jsonify({'error': 'Missing required fields'}), 400
-    
     data = load_data()
     if commodity not in data:
         data[commodity] = []
-    
     data[commodity].append({'date': date, 'price': float(price)})
     data[commodity] = sorted(data[commodity], key=lambda x: x['date'])
     save_data(data)
-    
     with get_db() as conn:
         conn.execute('''INSERT INTO price_entries (commodity, price, date, added_by, created_at)
                         VALUES (?, ?, ?, ?, ?)''',
                      (commodity, float(price), date, session['user_id'], datetime.now().isoformat()))
-    
     log_activity(session['user_id'], 'ADD_PRICE', f'{commodity}: ₦{price} on {date}')
     return jsonify({'message': 'Price added successfully'})
 
@@ -598,22 +615,20 @@ def get_statistics(commodity):
     data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
-    
     prices = [item['price'] for item in data[commodity]]
-    stats = {
+    return jsonify({
         'current_price': prices[-1],
-        'average': round(np.mean(prices), 2),
-        'min': round(np.min(prices), 2),
-        'max': round(np.max(prices), 2),
-        'std_dev': round(np.std(prices), 2),
-        'variance': round(np.var(prices), 2),
-        'trend': 'upward' if prices[-1] > prices[-30] else 'downward',
-        'volatility': round(np.std(prices[-30:]) / np.mean(prices[-30:]) * 100, 2)
-    }
-    return jsonify(stats)
+        'average':       round(float(np.mean(prices)), 2),
+        'min':           round(float(np.min(prices)),  2),
+        'max':           round(float(np.max(prices)),  2),
+        'std_dev':       round(float(np.std(prices)),  2),
+        'variance':      round(float(np.var(prices)),  2),
+        'trend':         'upward' if prices[-1] > prices[-30] else 'downward',
+        'volatility':    round(float(np.std(prices[-30:]) / np.mean(prices[-30:]) * 100), 2),
+    })
 
 # ─────────────────────────────────────────────
-# ADMIN API (Simplified)
+# ADMIN API
 # ─────────────────────────────────────────────
 
 @app.route('/api/admin/users', methods=['GET'])
@@ -621,38 +636,127 @@ def get_statistics(commodity):
 def admin_get_users():
     with get_db() as conn:
         users = conn.execute(
-            'SELECT id, username, email, role, is_active, created_at, last_login FROM users ORDER BY created_at DESC'
+            'SELECT id, username, email, role, is_active, created_at, last_login '
+            'FROM users ORDER BY created_at DESC'
         ).fetchall()
         return jsonify({'users': [dict(u) for u in users]})
+
+@app.route('/api/admin/users', methods=['POST'])
+@admin_required
+def admin_create_user():
+    data     = request.get_json()
+    username = data.get('username', '').strip()
+    email    = data.get('email', '').strip()
+    password = data.get('password', '')
+    role     = data.get('role', 'user')
+    if not username or not email or not password:
+        return jsonify({'error': 'Username, email and password are required'}), 400
+    if role not in ('user', 'admin'):
+        return jsonify({'error': 'Role must be user or admin'}), 400
+    if len(password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+    try:
+        with get_db() as conn:
+            conn.execute('''
+                INSERT INTO users (username, email, password_hash, role, is_active, created_at)
+                VALUES (?, ?, ?, ?, 1, ?)
+            ''', (username, email, hash_password(password), role, datetime.now().isoformat()))
+        log_activity(session['user_id'], 'CREATE_USER', f'Created user: {username}')
+        return jsonify({'message': f'User {username} created successfully'})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Username or email already exists'}), 409
+
+@app.route('/api/admin/users/<int:user_id>', methods=['GET'])
+@admin_required
+def admin_get_user(user_id):
+    with get_db() as conn:
+        user = conn.execute(
+            'SELECT id, username, email, role, is_active, created_at, last_login FROM users WHERE id=?',
+            (user_id,)
+        ).fetchone()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify(dict(user))
+
+@app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+@admin_required
+def admin_update_user(user_id):
+    data         = request.get_json()
+    username     = data.get('username', '').strip()
+    email        = data.get('email', '').strip()
+    role         = data.get('role')
+    is_active    = data.get('is_active')
+    new_password = data.get('password', '').strip()
+    if not username or not email:
+        return jsonify({'error': 'Username and email are required'}), 400
+    if role and role not in ('user', 'admin'):
+        return jsonify({'error': 'Role must be user or admin'}), 400
+    if role == 'user':
+        with get_db() as conn:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM users WHERE role='admin' AND id != ?", (user_id,)
+            ).fetchone()[0]
+        if cnt == 0:
+            return jsonify({'error': 'Cannot remove the last admin'}), 400
+    try:
+        with get_db() as conn:
+            if new_password and len(new_password) >= 6:
+                conn.execute('''
+                    UPDATE users SET username=?, email=?, role=?, is_active=?, password_hash=?
+                    WHERE id=?
+                ''', (username, email, role, int(is_active), hash_password(new_password), user_id))
+            else:
+                conn.execute(
+                    'UPDATE users SET username=?, email=?, role=?, is_active=? WHERE id=?',
+                    (username, email, role, int(is_active), user_id)
+                )
+        log_activity(session['user_id'], 'UPDATE_USER', f'Updated user id: {user_id}')
+        return jsonify({'message': 'User updated successfully'})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Username or email already exists'}), 409
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_user(user_id):
+    if user_id == session['user_id']:
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    with get_db() as conn:
+        user = conn.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        if user['role'] == 'admin':
+            cnt = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
+            if cnt <= 1:
+                return jsonify({'error': 'Cannot delete the last admin account'}), 400
+        conn.execute('DELETE FROM users WHERE id=?', (user_id,))
+    log_activity(session['user_id'], 'DELETE_USER', f'Deleted user: {user["username"]}')
+    return jsonify({'message': f'User {user["username"]} deleted successfully'})
 
 @app.route('/api/admin/stats', methods=['GET'])
 @admin_required
 def admin_stats():
     with get_db() as conn:
-        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        total_users  = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         active_users = conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0]
-        admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
-        recent_logs = conn.execute('''
+        admin_count  = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
+        recent_logs  = conn.execute('''
             SELECT al.*, u.username FROM activity_log al
             LEFT JOIN users u ON al.user_id = u.id
             ORDER BY al.created_at DESC LIMIT 20
         ''').fetchall()
-    
-    data = load_data()
     return jsonify({
-        'total_users': total_users,
-        'active_users': active_users,
-        'admin_count': admin_count,
-        'total_commodities': len(data),
-        'recent_activity': [dict(r) for r in recent_logs]
+        'total_users':       total_users,
+        'active_users':      active_users,
+        'admin_count':       admin_count,
+        'total_commodities': len(load_data()),
+        'recent_activity':   [dict(r) for r in recent_logs],
     })
 
 @app.route('/api/admin/commodities', methods=['DELETE'])
 @admin_required
 def admin_delete_commodity():
-    data_req = request.get_json()
-    commodity = data_req.get('commodity')
-    data = load_data()
+    commodity = request.get_json().get('commodity')
+    data      = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
     del data[commodity]
@@ -660,21 +764,27 @@ def admin_delete_commodity():
     log_activity(session['user_id'], 'DELETE_COMMODITY', commodity)
     return jsonify({'message': f'{commodity} deleted successfully'})
 
+@app.route('/api/user/profile', methods=['PUT'])
+@login_required
+def update_profile():
+    email = request.get_json().get('email', '').strip()
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    try:
+        with get_db() as conn:
+            conn.execute('UPDATE users SET email=? WHERE id=?', (email, session['user_id']))
+        return jsonify({'message': 'Profile updated'})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Email already in use'}), 409
+
 # ─────────────────────────────────────────────
-# PRODUCTION SERVER SETUP
+# ENTRY POINT
 # ─────────────────────────────────────────────
 
 if __name__ == '__main__':
     init_db()
     initialize_data()
-    
-    port = int(os.environ.get('PORT', 5000))
+    port       = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    
-    if os.environ.get('RENDER', False):
-        print(f"Starting production server on port {port}")
-        # Use gunicorn in production (not Flask's dev server)
-        # This block is for local testing - Render uses gunicorn from start command
-        app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
-    else:
-        app.run(debug=debug_mode, port=port, host='127.0.0.1')
+    host       = '0.0.0.0' if os.environ.get('RENDER') else '127.0.0.1'
+    app.run(host=host, port=port, debug=debug_mode, threaded=True)
