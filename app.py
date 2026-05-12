@@ -798,7 +798,27 @@ def admin_delete_commodity():
     log_activity(session['user_id'], 'DELETE_COMMODITY', commodity)
     return jsonify({'message': f'{commodity} deleted successfully'})
 
+# ─────────────────────────────────────────────
+# PRODUCTION SERVER SETUP - FIXED
+# ─────────────────────────────────────────────
+
 if __name__ == '__main__':
     init_db()
     initialize_data()
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    
+    # Get the port from environment variable (Render sets this)
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Use production server (Waitress) if available, otherwise fallback to Flask
+    # But for Render, we need to ensure the port is properly bound
+    # Debug mode should be False in production
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    if os.environ.get('RENDER', False):
+        # Running on Render - use production setup
+        print(f"Starting production server on port {port}")
+        # Bind to 0.0.0.0 to accept external connections
+        app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+    else:
+        # Local development
+        app.run(debug=debug_mode, port=port, host='127.0.0.1')
