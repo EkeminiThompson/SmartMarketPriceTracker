@@ -160,10 +160,12 @@
         .metric-tile.accent-orange .val { color: var(--gold); }
         .metric-tile.accent-purple .val { color: #7b1fa2; }
         /* R² colour variants */
-        .metric-tile .r2-good   { color: var(--success); }
-        .metric-tile .r2-ok     { color: var(--gold); }
-        .metric-tile .r2-bad    { color: var(--error); }
-        .metric-tile .r2-na     { color: var(--muted); }
+        .metric-tile .r2-excellent { color: var(--success); }
+        .metric-tile .r2-good      { color: #27ae60; }
+        .metric-tile .r2-ok        { color: var(--gold); }
+        .metric-tile .r2-weak      { color: #e67e22; }
+        .metric-tile .r2-bad       { color: var(--error); }
+        .metric-tile .r2-na        { color: var(--muted); }
 
         /* LSTM warning banner */
         .lstm-warn {
@@ -552,7 +554,7 @@
             // Directional confusion from actual price movements
             const { tp, fp, tn, fn } = computeConfusion(histPrices, seededRand(seed + 1));
 
-            // Augment backend metrics with MAPE and approximate R²
+            // ═══ CRITICAL FIX: Use R² directly from backend ═══
             const arimaM = augmentMetrics(raw.arima?.metrics, histPrices);
             const lstmM  = augmentMetrics(raw.lstm?.metrics,  histPrices);
 
@@ -579,28 +581,40 @@
         }
 
         /**
-         * Takes backend { rmse, mae, accuracy } and adds:
-         *   mape  — derived from mae / mean(prices)
-         *   r2    — approximate: 1 − RMSE²/Var(prices)
-         *           valid for in-sample fit quality; may be negative for
-         *           out-of-sample forecasts (worse than predicting the mean).
-         *   r2_num — raw float for colour-coding
+         * ═══ FIXED FUNCTION: Now reads R² from backend ═══
+         * Takes backend { rmse, mae, accuracy, r2 } and adds only MAPE.
+         * No longer calculates R² from variance (which was causing negative values).
          */
         function augmentMetrics(base, actuals) {
-            if (!base) return { accuracy: 0, rmse: 0, mae: 0, mape: 0, r2: 'N/A', r2_num: null };
+            if (!base) return { 
+                accuracy: 0, 
+                rmse: 0, 
+                mae: 0, 
+                mape: 0, 
+                r2: 'N/A', 
+                r2_num: null 
+            };
 
             const mean = actuals.reduce((a, b) => a + b, 0) / actuals.length;
             const mape = +(base.mae / mean * 100).toFixed(2);
 
-            const variance = actuals.reduce((s, v) => s + (v - mean) ** 2, 0) / actuals.length;
+            // ═══ USE R² FROM BACKEND (not calculated) ═══
             let r2_num = null, r2 = 'N/A';
-            if (variance > 0 && base.rmse > 0) {
-                r2_num = +(1 - (base.rmse * base.rmse) / variance).toFixed(4);
-                // Clamp to [-1, 1] for display
+            if (base.r2 !== undefined && base.r2 !== null && typeof base.r2 === 'number') {
+                r2_num = parseFloat(base.r2);
+                // Clamp to [-1, 1] for display sanity
                 r2_num = Math.max(-1, Math.min(1, r2_num));
-                r2 = r2_num.toFixed(4);
+                r2 = r2_num.toFixed(3);
             }
-            return { ...base, mape, r2, r2_num };
+
+            return { 
+                accuracy: base.accuracy,
+                rmse: base.rmse,
+                mae: base.mae,
+                mape, 
+                r2, 
+                r2_num 
+            };
         }
 
         // ── Seeded helpers ────────────────────────────────────────────────────────
@@ -715,13 +729,51 @@
         }
 
         // ── Metric Tiles ──────────────────────────────────────────────────────────
+        /**
+         * ═══ IMPROVED R² DISPLAY with better color coding ═══
+         */
         function r2Display(r2_num) {
-            if (r2_num === null) return { text: 'N/A', cls: 'r2-na', tip: 'Not enough data to compute R².' };
-            const sign = r2_num >= 0 ? '' : '';
-            if (r2_num >= 0.8)  return { text: r2_num.toFixed(3) + ' ✓', cls: 'r2-good', tip: 'Good fit: model explains ≥80% of variance.' };
-            if (r2_num >= 0.5)  return { text: r2_num.toFixed(3) + ' ~', cls: 'r2-ok',   tip: 'Moderate fit. Model explains 50–80% of variance.' };
-            if (r2_num >= 0)    return { text: r2_num.toFixed(3) + ' ↓', cls: 'r2-bad',  tip: 'Weak fit. Model barely beats a naive mean predictor.' };
-            return { text: r2_num.toFixed(3) + ' ✗', cls: 'r2-bad', tip: 'Negative R²: forecast is less accurate than a simple mean predictor. Normal for long out-of-sample windows.' };
+            if (r2_num === null) {
+                return { 
+                    text: 'N/A', 
+                    cls: 'r2-na', 
+                    tip: 'R² not available. Backend may need to be updated to return r2 in metrics.' 
+                };
+            }
+
+            // Color scale for R² values
+            if (r2_num >= 0.9)  return { 
+                text: r2_num.toFixed(3) + ' ✓✓', 
+                cls: 'r2-excellent', 
+                tip: 'Excellent fit! Model explains ≥90% of variance.' 
+            };
+            if (r2_num >= 0.7)  return { 
+                text: r2_num.toFixed(3) + ' ✓', 
+                cls: 'r2-good', 
+                tip: 'Good fit: model explains 70–90% of variance.' 
+            };
+            if (r2_num >= 0.5)  return { 
+                text: r2_num.toFixed(3) + ' ~', 
+                cls: 'r2-ok', 
+                tip: 'Moderate fit. Model explains 50–70% of variance.' 
+            };
+            if (r2_num >= 0.3)  return { 
+                text: r2_num.toFixed(3) + ' ↓', 
+                cls: 'r2-weak', 
+                tip: 'Weak fit (30-50%). Model struggles with this data.' 
+            };
+            if (r2_num >= 0)    return { 
+                text: r2_num.toFixed(3) + ' ↓↓', 
+                cls: 'r2-bad', 
+                tip: 'Very weak fit (<30%). Model barely beats naive mean predictor.' 
+            };
+            
+            // Negative R²
+            return { 
+                text: r2_num.toFixed(3) + ' ✗', 
+                cls: 'r2-bad', 
+                tip: 'Negative R²: test predictions are worse than predicting the mean. Common for out-of-sample forecasts on volatile data or when forecast window is too long.' 
+            };
         }
 
         function updateMetricTiles(d) {
@@ -729,8 +781,10 @@
             const m  = (selectedModel === 'lstm' && d.lstm_metrics.rmse > 0) ? d.lstm_metrics : d.arima_metrics;
             const lm = d.lstm_metrics;
             const label = (selectedModel === 'lstm' && lm.rmse > 0) ? 'LSTM' : 'ARIMA';
-            const lstmHasRealMetrics = lm.rmse > 0 && lm.mae > 0;
             const r2d = r2Display(m.r2_num);
+
+            // Check if backend is returning r2
+            const backendHasR2 = m.r2_num !== null;
 
             document.getElementById('metricTiles').innerHTML = `
                 <div class="metric-tile" title="100 − MAPE. How close predictions are to actuals on average.">
@@ -749,16 +803,15 @@
                     <div class="val">${m.mape}%</div>
                     <div class="lbl">MAPE</div>
                 </div>
-                <div class="metric-tile" title="${r2d.tip} Formula: 1 − RMSE²/Var(prices).">
+                <div class="metric-tile" title="${r2d.tip}">
                     <div class="val ${r2d.cls}">${r2d.text}</div>
                     <div class="lbl">R² Score <span style="font-size:0.6rem;opacity:0.55">ⓘ</span></div>
                 </div>
-                ${!lstmHasRealMetrics ? `
+                ${!backendHasR2 ? `
                 <div class="lstm-warn">
                     <i class="fas fa-exclamation-triangle" style="color:var(--gold);flex-shrink:0"></i>
-                    LSTM RMSE/MAE are not computed on the server (simplified metrics active).
-                    Fix: ensure <code>predict_lstm()</code> in <strong>app.py</strong> calls
-                    <code>model.predict(X_train)</code> and computes real errors — see the updated app.py.
+                    <strong>Backend not returning R².</strong> Update <code>predict_arima()</code> and 
+                    <code>predict_lstm()</code> to include <code>'r2': round(r2, 3)</code> in the returned metrics dict.
                 </div>` : ''}
             `;
         }
