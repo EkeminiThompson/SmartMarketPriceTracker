@@ -3,100 +3,596 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Market Price Tracker - Rural Nigerian Traders</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Smart Market Price Tracker - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
-            --primary-color: #2e7d32;
-            --secondary-color: #558b2f;
-            --accent-color: #ff6f00;
-            --bg-light: #f1f8e9;
+            --forest: #1a3d24; --leaf: #2e7d32; --lime: #7cb342;
+            --gold: #e6a817; --cream: #faf6ef; --ink: #1c1c1c;
+            --muted: #6b7566; --border: #d4dcc8;
+            --error: #c0392b; --success: #1e8449; --info: #1a5276;
         }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, var(--bg-light) 0%, #fff 100%); min-height: 100vh; }
-        .navbar { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .navbar-brand { font-weight: bold; font-size: 1.5rem; }
-        .hero-section { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; padding: 3rem 0; margin-bottom: 2rem; border-radius: 0 0 50px 50px; }
-        .card { border: none; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); transition: transform 0.3s ease; }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
-        .card-header { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; border-radius: 15px 15px 0 0 !important; padding: 1.5rem; font-weight: bold; }
-        .btn-primary { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); border: none; padding: 0.75rem 2rem; border-radius: 25px; font-weight: bold; transition: all 0.3s ease; }
-        .btn-primary:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(46, 125, 50, 0.3); }
-        .btn-warning { background: linear-gradient(135deg, var(--accent-color) 0%, #f57c00 100%); border: none; color: white; padding: 0.75rem 2rem; border-radius: 25px; font-weight: bold; }
-        .stat-card { background: white; padding: 1.5rem; border-radius: 15px; text-align: center; margin-bottom: 1rem; }
-        .stat-value { font-size: 2rem; font-weight: bold; color: var(--primary-color); }
-        .stat-label { color: #666; font-size: 0.9rem; text-transform: uppercase; }
-        .form-control, .form-select { border-radius: 10px; padding: 0.75rem; border: 2px solid #e0e0e0; }
-        .form-control:focus, .form-select:focus { border-color: var(--primary-color); box-shadow: 0 0 0 0.2rem rgba(46, 125, 50, 0.1); }
-        .chart-container { position: relative; height: 400px; margin-top: 1rem; }
-        .metric-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 20px; margin: 0.25rem; font-weight: bold; }
-        .accuracy-badge { background: #4caf50; color: white; }
-        .rmse-badge { background: #2196f3; color: white; }
-        .mae-badge { background: #ff9800; color: white; }
-        .trend-up { color: #4caf50; }
-        .trend-down { color: #f44336; }
-        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
+        body { 
+            font-family: 'DM Sans', sans-serif; 
+            background: var(--cream); 
+            min-height: 100vh; 
+            color: var(--ink);
+        }
+
+        /* Navigation */
+        .navbar {
+            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
+            padding: 1rem 0;
+            box-shadow: 0 2px 15px rgba(26,61,36,0.15);
+        }
+        .navbar .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .navbar-brand {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.4rem;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .navbar-brand i { font-size: 1.6rem; color: var(--gold); }
+        
+        .nav-menu {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .nav-link:hover, .nav-link.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+        .nav-link-analytics {
+            background: rgba(230,168,23,0.25);
+            color: var(--gold) !important;
+            font-weight: 600;
+        }
+        .nav-link-analytics:hover {
+            background: rgba(230,168,23,0.35);
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .user-pill {
+            background: rgba(255,255,255,0.15);
+            border-radius: 20px;
+            padding: 0.4rem 1rem;
+            color: white;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-nav {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-nav:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .btn-admin {
+            background: var(--gold);
+            border-color: var(--gold);
+            color: var(--forest);
+            font-weight: 600;
+        }
+        .btn-admin:hover {
+            background: #ffb733;
+            color: var(--forest);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
+            color: white;
+            padding: 2rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 80% 20%, rgba(230,168,23,0.15) 0%, transparent 50%);
+        }
+        .hero .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            text-align: center;
+        }
+        .hero h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .hero p {
+            font-size: 1rem;
+            opacity: 0.85;
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Card Styles */
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .card-header {
+            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
+            color: white;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+        .card-header i { color: var(--gold); font-size: 1.2rem; }
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Form Elements */
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+        .form-control, .form-select {
+            padding: 0.7rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            color: var(--ink);
+            background: white;
+            transition: border-color 0.2s;
+        }
+        .form-control:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--leaf);
+            box-shadow: 0 0 0 3px rgba(46,125,50,0.1);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(46,125,50,0.3);
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, var(--gold) 0%, #ffb733 100%);
+            color: var(--forest);
+        }
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(230,168,23,0.3);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #f8faf6 0%, white 100%);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--lime);
+            box-shadow: 0 4px 15px rgba(124,179,66,0.15);
+        }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--forest);
+            font-family: 'DM Serif Display', serif;
+        }
+        .stat-label {
+            color: var(--muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.25rem;
+        }
+
+        /* Metrics Badges */
+        .metrics-row {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        .metric-badge {
+            background: linear-gradient(135deg, #f0f7ed 0%, white 100%);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 0.6rem 1.2rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .metric-badge i { color: var(--forest); }
+        .metric-badge.accuracy { border-color: var(--success); color: var(--success); }
+        .metric-badge.rmse { border-color: var(--info); color: var(--info); }
+        .metric-badge.mae { border-color: var(--gold); color: var(--gold); }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 1rem;
+        }
+
+        /* Insights Box */
+        .insights-box {
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+            border: 2px solid #c8e6c9;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-top: 1.5rem;
+        }
+        .insights-box h5 {
+            color: var(--forest);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .insights-box p {
+            margin-bottom: 0.5rem;
+            color: var(--ink);
+        }
+        .insights-box strong {
+            color: var(--forest);
+            font-weight: 600;
+        }
+        .trend-up { color: var(--success); }
+        .trend-down { color: var(--error); }
+
+        /* Alert Messages */
+        .alert {
+            padding: 0.9rem 1.2rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .alert-success {
+            background: #eafaf1;
+            border: 2px solid #a9dfbf;
+            color: var(--success);
+        }
+        .alert-danger {
+            background: #fdecea;
+            border: 2px solid #f5c6c2;
+            color: var(--error);
+        }
+        .alert i {
+            font-size: 1.1rem;
+            margin-top: 2px;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(26,61,36,0.85);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
         .loading-overlay.active { display: flex; }
-        .spinner-border { width: 3rem; height: 3rem; }
-        .user-pill { background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 12px; color: white; font-size: 0.9rem; }
-        @media (max-width: 768px) { .hero-section h1 { font-size: 1.75rem; } .stat-value { font-size: 1.5rem; } }
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+        .spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 9998;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .modal.show { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
+            color: white;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 15px 15px 0 0;
+        }
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-close {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .btn-close:hover { opacity: 1; }
+        .modal-body { padding: 1.5rem; }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            color: var(--forest);
+            border-bottom-color: var(--forest);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Footer */
+        .footer {
+            background: var(--forest);
+            color: rgba(255,255,255,0.8);
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 3rem;
+        }
+        .footer p { margin-bottom: 0.25rem; }
+        .footer small { opacity: 0.6; }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .navbar .container {
+                padding: 0 1rem;
+            }
+            .navbar-brand {
+                font-size: 1.2rem;
+            }
+            .nav-menu, .nav-actions {
+                width: 100%;
+                justify-content: center;
+            }
+            .hero h1 {
+                font-size: 1.5rem;
+            }
+            .hero p {
+                font-size: 0.9rem;
+            }
+            .main-container {
+                padding: 1rem;
+            }
+            .card-header {
+                padding: 1rem;
+                font-size: 0.95rem;
+            }
+            .card-body {
+                padding: 1rem;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .chart-container {
+                height: 300px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .metrics-row {
+                flex-direction: column;
+            }
+            .metric-badge {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-dark navbar-expand-lg">
+    <nav class="navbar">
         <div class="container">
-            <a class="navbar-brand" href="#"><i class="fas fa-chart-line me-2"></i>Smart Market Price Tracker</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link active" href="#prediction">Price Prediction</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#data-entry">Add Data</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#statistics">Statistics</a></li>
-                </ul>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="user-pill" id="navUser"><i class="fas fa-user me-1"></i>...</span>
-                    <button class="btn btn-outline-light btn-sm" onclick="openProfileModal()"><i class="fas fa-cog"></i></button>
-                    <a href="/admin" class="btn btn-warning btn-sm py-1 px-3" id="adminLink" style="display:none;">
-                        <i class="fas fa-shield-alt me-1"></i>Admin
-                    </a>
-                    <button class="btn btn-outline-light btn-sm" onclick="doLogout()"><i class="fas fa-sign-out-alt me-1"></i>Logout</button>
-                </div>
+            <a class="navbar-brand" href="/"><i class="fas fa-chart-line"></i>Smart Market Tracker</a>
+            <div class="nav-menu">
+                <a class="nav-link active" href="#prediction">Prediction</a>
+                <a class="nav-link" href="#data-entry">Add Data</a>
+                <a class="nav-link" href="#statistics">Statistics</a>
+                <a class="nav-link nav-link-analytics" href="/analytics">
+                    <i class="fas fa-microscope"></i>ML Analytics
+                </a>
+            </div>
+            <div class="nav-actions">
+                <span class="user-pill" id="navUser"><i class="fas fa-user"></i>Loading...</span>
+                <button class="btn-nav" onclick="openProfileModal()"><i class="fas fa-cog"></i></button>
+                <a href="/admin" class="btn-nav btn-admin" id="adminLink" style="display:none;">
+                    <i class="fas fa-shield-alt"></i>Admin
+                </a>
+                <button class="btn-nav" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i></button>
             </div>
         </div>
     </nav>
 
-    <!-- Hero Section -->
-    <div class="hero-section">
-        <div class="container text-center">
-            <h1 class="display-4 mb-3"><i class="fas fa-seedling me-2"></i>Empowering Rural Traders with AI</h1>
-            <p class="lead">Track and predict agricultural commodity prices using advanced machine learning</p>
+    <!-- Hero -->
+    <div class="hero">
+        <div class="container">
+            <h1><i class="fas fa-seedling"></i> Empowering Rural Traders with AI</h1>
+            <p>Track and predict agricultural commodity prices using advanced machine learning</p>
         </div>
     </div>
 
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
-        <div class="text-center text-white">
-            <div class="spinner-border" role="status"></div>
-            <p class="mt-3 fs-5">Analyzing market data...</p>
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p style="font-size:1.1rem;font-weight:600;">Analyzing market data...</p>
         </div>
     </div>
 
-    <div class="container mb-5">
+    <!-- Main Container -->
+    <div class="main-container">
         <!-- Price Prediction Section -->
-        <section id="prediction" class="mb-5">
+        <section id="prediction">
             <div class="card">
-                <div class="card-header"><i class="fas fa-brain me-2"></i>AI-Powered Price Prediction</div>
-                <div class="card-body p-4">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
+                <div class="card-header">
+                    <i class="fas fa-brain"></i>AI-Powered Price Prediction
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
                             <label class="form-label">Select Commodity</label>
-                            <select class="form-select" id="commoditySelect"><option value="">Loading...</option></select>
+                            <select class="form-select" id="commoditySelect">
+                                <option value="">Loading...</option>
+                            </select>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="form-group">
                             <label class="form-label">Prediction Model</label>
                             <select class="form-select" id="modelSelect">
                                 <option value="arima">ARIMA</option>
@@ -104,120 +600,154 @@
                                 <option value="compare">Compare Both</option>
                             </select>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="form-group">
                             <label class="form-label">Forecast Days</label>
                             <input type="number" class="form-control" id="forecastDays" value="30" min="7" max="90">
                         </div>
-                        <div class="col-md-2 mb-3">
+                        <div class="form-group">
                             <label class="form-label">&nbsp;</label>
-                            <button class="btn btn-primary w-100" onclick="predictPrices()"><i class="fas fa-magic me-2"></i>Predict</button>
+                            <button class="btn btn-primary" onclick="predictPrices()" style="width:100%;">
+                                <i class="fas fa-magic"></i>Predict
+                            </button>
                         </div>
                     </div>
+                    
                     <div id="predictionResults" style="display: none;">
-                        <hr class="my-4">
-                        <div id="metricsContainer" class="mb-4"></div>
+                        <hr style="border:none;border-top:2px solid var(--border);margin:1.5rem 0;">
+                        <div id="metricsContainer"></div>
                         <div class="chart-container"><canvas id="priceChart"></canvas></div>
-                        <div id="insightsContainer" class="mt-4"></div>
+                        <div id="insightsContainer"></div>
                     </div>
                 </div>
             </div>
         </section>
 
         <!-- Statistics Section -->
-        <section id="statistics" class="mb-5">
+        <section id="statistics">
             <div class="card">
-                <div class="card-header"><i class="fas fa-chart-bar me-2"></i>Market Statistics</div>
-                <div class="card-body p-4">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
+                <div class="card-header">
+                    <i class="fas fa-chart-bar"></i>Market Statistics
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group" style="grid-column: 1 / -1;">
                             <label class="form-label">Select Commodity for Statistics</label>
-                            <select class="form-select" id="statsCommoditySelect"><option value="">Choose a commodity...</option></select>
+                            <select class="form-select" id="statsCommoditySelect">
+                                <option value="">Choose a commodity...</option>
+                            </select>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">&nbsp;</label>
-                            <button class="btn btn-primary w-100" onclick="loadStatistics()"><i class="fas fa-chart-pie me-2"></i>Show Statistics</button>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <button class="btn btn-primary" onclick="loadStatistics()" style="width:100%;">
+                                <i class="fas fa-chart-pie"></i>Show Statistics
+                            </button>
                         </div>
                     </div>
+                    
                     <div id="statisticsResults" style="display: none;">
-                        <hr class="my-4">
-                        <div class="row" id="statsCards"></div>
+                        <hr style="border:none;border-top:2px solid var(--border);margin:1.5rem 0;">
+                        <div class="stats-grid" id="statsCards"></div>
                     </div>
                 </div>
             </div>
         </section>
 
         <!-- Data Entry Section -->
-        <section id="data-entry" class="mb-5">
+        <section id="data-entry">
             <div class="card">
-                <div class="card-header"><i class="fas fa-database me-2"></i>Add New Price Data</div>
-                <div class="card-body p-4">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
+                <div class="card-header">
+                    <i class="fas fa-database"></i>Add New Price Data
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
                             <label class="form-label">Commodity Name</label>
                             <input type="text" class="form-control" id="newCommodity" placeholder="e.g., Rice, Tomatoes">
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="form-group">
                             <label class="form-label">Price (₦)</label>
                             <input type="number" class="form-control" id="newPrice" placeholder="Enter price" step="0.01">
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="form-group">
                             <label class="form-label">Date</label>
                             <input type="date" class="form-control" id="newDate">
                         </div>
-                        <div class="col-md-2 mb-3">
+                        <div class="form-group">
                             <label class="form-label">&nbsp;</label>
-                            <button class="btn btn-warning w-100" onclick="addPrice()"><i class="fas fa-plus me-2"></i>Add</button>
+                            <button class="btn btn-warning" onclick="addPrice()" style="width:100%;">
+                                <i class="fas fa-plus"></i>Add
+                            </button>
                         </div>
                     </div>
-                    <div id="addPriceMessage" class="mt-3"></div>
+                    <div id="addPriceMessage"></div>
                 </div>
             </div>
         </section>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-4 mt-5">
-        <div class="container">
-            <p class="mb-0"><i class="fas fa-heartbeat me-2"></i>Developed for Rural Nigerian Traders | Powered by AI & Machine Learning</p>
-            <small class="text-muted">ARIMA & LSTM Time-Series Forecasting</small>
-        </div>
+    <footer class="footer">
+        <p><i class="fas fa-heartbeat"></i> Developed for Rural Nigerian Traders | Powered by AI & Machine Learning</p>
+        <small>ARIMA & LSTM Time-Series Forecasting</small>
     </footer>
 
     <!-- Profile Modal -->
-    <div class="modal fade" id="profileModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header" style="background:linear-gradient(135deg,#2e7d32,#558b2f);color:white;">
-                    <h5 class="modal-title"><i class="fas fa-user-cog me-2"></i>My Profile</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+    <div class="modal" id="profileModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-cog"></i>My Profile</h5>
+                <button class="btn-close" onclick="closeProfileModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchProfileTab('profile')">Profile</button>
+                    <button class="tab-btn" onclick="switchProfileTab('password')">Change Password</button>
                 </div>
-                <div class="modal-body">
-                    <ul class="nav nav-tabs mb-3" id="profileTabs">
-                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabProfile">Profile</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPassword">Change Password</button></li>
-                    </ul>
-                    <div class="tab-content">
-                        <div class="tab-pane fade show active" id="tabProfile">
-                            <div class="mb-3"><label class="form-label">Username</label><input type="text" class="form-control" id="profileUsername" disabled></div>
-                            <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" id="profileEmail"></div>
-                            <div class="mb-3"><label class="form-label">Role</label><input type="text" class="form-control" id="profileRole" disabled></div>
-                            <div class="mb-3"><label class="form-label">Member Since</label><input type="text" class="form-control" id="profileCreated" disabled></div>
-                            <button class="btn btn-primary" onclick="saveProfile()"><i class="fas fa-save me-1"></i>Save Changes</button>
-                        </div>
-                        <div class="tab-pane fade" id="tabPassword">
-                            <div class="mb-3"><label class="form-label">Current Password</label><input type="password" class="form-control" id="oldPassword" placeholder="Current password"></div>
-                            <div class="mb-3"><label class="form-label">New Password</label><input type="password" class="form-control" id="newPassword" placeholder="Min 6 characters"></div>
-                            <div class="mb-3"><label class="form-label">Confirm New Password</label><input type="password" class="form-control" id="confirmPassword" placeholder="Repeat new password"></div>
-                            <button class="btn btn-primary" onclick="changePassword()"><i class="fas fa-key me-1"></i>Change Password</button>
-                        </div>
+                
+                <div class="tab-content active" id="tabProfile">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="profileUsername" disabled>
                     </div>
-                    <div id="profileMsg" class="mt-3"></div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="profileEmail">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Role</label>
+                        <input type="text" class="form-control" id="profileRole" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Member Since</label>
+                        <input type="text" class="form-control" id="profileCreated" disabled>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveProfile()" style="width:100%;margin-top:1rem;">
+                        <i class="fas fa-save"></i>Save Changes
+                    </button>
                 </div>
+                
+                <div class="tab-content" id="tabPassword">
+                    <div class="form-group">
+                        <label class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="oldPassword" placeholder="Current password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newPassword" placeholder="Min 6 characters">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirmPassword" placeholder="Repeat new password">
+                    </div>
+                    <button class="btn btn-primary" onclick="changePassword()" style="width:100%;margin-top:1rem;">
+                        <i class="fas fa-key"></i>Change Password
+                    </button>
+                </div>
+                
+                <div id="profileMsg" style="margin-top:1rem;"></div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const API_BASE = '/api';
         let currentChart = null;
@@ -234,9 +764,9 @@
                 const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
                 if (!res.ok) { window.location.href = '/login'; return; }
                 currentUser = await res.json();
-                document.getElementById('navUser').innerHTML = `<i class="fas fa-user me-1"></i>${currentUser.username}`;
+                document.getElementById('navUser').innerHTML = `<i class="fas fa-user"></i>${currentUser.username}`;
                 if (currentUser.role === 'admin') {
-                    document.getElementById('adminLink').style.display = 'inline-block';
+                    document.getElementById('adminLink').style.display = 'inline-flex';
                 }
             } catch (e) {
                 window.location.href = '/login';
@@ -256,7 +786,18 @@
             document.getElementById('profileRole').value = u.role;
             document.getElementById('profileCreated').value = new Date(u.created_at).toLocaleDateString('en-NG');
             document.getElementById('profileMsg').innerHTML = '';
-            new bootstrap.Modal(document.getElementById('profileModal')).show();
+            document.getElementById('profileModal').classList.add('show');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.remove('show');
+        }
+
+        function switchProfileTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab === 'profile' ? 'tabProfile' : 'tabPassword').classList.add('active');
         }
 
         async function saveProfile() {
@@ -268,14 +809,14 @@
                 body: JSON.stringify({ email })
             });
             const data = await res.json();
-            showProfileMsg(data.message || data.error, res.ok ? 'success' : 'danger');
+            showProfileMsg(data.message || data.error, res.ok);
         }
 
         async function changePassword() {
             const oldPw = document.getElementById('oldPassword').value;
             const newPw = document.getElementById('newPassword').value;
             const confirmPw = document.getElementById('confirmPassword').value;
-            if (newPw !== confirmPw) { showProfileMsg('New passwords do not match.', 'danger'); return; }
+            if (newPw !== confirmPw) { showProfileMsg('New passwords do not match.', false); return; }
             const res = await fetch(`${API_BASE}/auth/change_password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -283,12 +824,18 @@
                 body: JSON.stringify({ old_password: oldPw, new_password: newPw })
             });
             const data = await res.json();
-            showProfileMsg(data.message || data.error, res.ok ? 'success' : 'danger');
-            if (res.ok) { document.getElementById('oldPassword').value = ''; document.getElementById('newPassword').value = ''; document.getElementById('confirmPassword').value = ''; }
+            showProfileMsg(data.message || data.error, res.ok);
+            if (res.ok) {
+                document.getElementById('oldPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+            }
         }
 
-        function showProfileMsg(msg, type) {
-            document.getElementById('profileMsg').innerHTML = `<div class="alert alert-${type} py-2">${msg}</div>`;
+        function showProfileMsg(msg, isSuccess) {
+            const cls = isSuccess ? 'alert-success' : 'alert-danger';
+            const icon = isSuccess ? 'fa-check-circle' : 'fa-times-circle';
+            document.getElementById('profileMsg').innerHTML = `<div class="alert ${cls}"><i class="fas ${icon}"></i>${msg}</div>`;
         }
 
         function setTodayDate() {
@@ -326,11 +873,21 @@
             try {
                 let response, data;
                 if (model === 'compare') {
-                    response = await fetch(`${API_BASE}/compare_models`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ commodity, forecast_days: forecastDays }) });
+                    response = await fetch(`${API_BASE}/compare_models`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ commodity, forecast_days: forecastDays })
+                    });
                     data = await response.json();
                     displayComparisonResults(data);
                 } else {
-                    response = await fetch(`${API_BASE}/predict`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ commodity, model, forecast_days: forecastDays }) });
+                    response = await fetch(`${API_BASE}/predict`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ commodity, model, forecast_days: forecastDays })
+                    });
                     data = await response.json();
                     displayPredictionResults(data);
                 }
@@ -344,44 +901,80 @@
 
         function displayPredictionResults(data) {
             document.getElementById('metricsContainer').innerHTML = `
-                <div class="text-center">
-                    <h5 class="mb-3">Model Performance - ${data.model}</h5>
-                    <span class="metric-badge accuracy-badge"><i class="fas fa-check-circle me-1"></i>Accuracy: ${data.metrics.accuracy}%</span>
-                    <span class="metric-badge rmse-badge"><i class="fas fa-chart-line me-1"></i>RMSE: ₦${data.metrics.rmse}</span>
-                    <span class="metric-badge mae-badge"><i class="fas fa-exclamation-triangle me-1"></i>MAE: ₦${data.metrics.mae}</span>
+                <div class="metrics-row">
+                    <span class="metric-badge accuracy"><i class="fas fa-check-circle"></i>Accuracy: ${data.metrics.accuracy}%</span>
+                    <span class="metric-badge rmse"><i class="fas fa-chart-line"></i>RMSE: ₦${data.metrics.rmse}</span>
+                    <span class="metric-badge mae"><i class="fas fa-exclamation-triangle"></i>MAE: ₦${data.metrics.mae}</span>
                 </div>`;
+
             const labels = [...data.historical.map(d => d.date), ...data.forecast.map(d => d.date)];
             const historicalPrices = data.historical.map(d => d.price);
             const forecastPrices = new Array(data.historical.length).fill(null).concat(data.forecast.map(d => d.price));
             createChart(labels, historicalPrices, forecastPrices, data.model);
+
             const currentPrice = data.historical[data.historical.length - 1].price;
             const predictedPrice = data.forecast[data.forecast.length - 1].price;
             const priceChange = ((predictedPrice - currentPrice) / currentPrice * 100).toFixed(2);
             const trend = priceChange > 0 ? 'increase' : 'decrease';
+            
             document.getElementById('insightsContainer').innerHTML = `
-                <div class="alert alert-info">
-                    <h5><i class="fas fa-lightbulb me-2"></i>Market Insights</h5>
-                    <p class="mb-2"><strong>Current Price:</strong> ₦${currentPrice.toFixed(2)}</p>
-                    <p class="mb-2"><strong>Predicted Price (${data.forecast.length} days):</strong> ₦${predictedPrice.toFixed(2)}</p>
-                    <p class="mb-0"><strong>Expected Change:</strong> <span class="${priceChange > 0 ? 'trend-up' : 'trend-down'}"><i class="fas fa-arrow-${priceChange > 0 ? 'up' : 'down'} me-1"></i>${Math.abs(priceChange)}% ${trend}</span></p>
-                    <hr><small class="text-muted"><i class="fas fa-info-circle me-1"></i>${getRecommendation(trend, priceChange)}</small>
+                <div class="insights-box">
+                    <h5><i class="fas fa-lightbulb"></i>Market Insights</h5>
+                    <p><strong>Current Price:</strong> ₦${currentPrice.toFixed(2)}</p>
+                    <p><strong>Predicted Price (${data.forecast.length} days):</strong> ₦${predictedPrice.toFixed(2)}</p>
+                    <p><strong>Expected Change:</strong> <span class="${priceChange > 0 ? 'trend-up' : 'trend-down'}">
+                        <i class="fas fa-arrow-${priceChange > 0 ? 'up' : 'down'}"></i> ${Math.abs(priceChange)}% ${trend}
+                    </span></p>
+                    <hr style="border:none;border-top:1px solid #c8e6c9;margin:1rem 0;">
+                    <p style="font-size:0.85rem;color:var(--muted);">
+                        <i class="fas fa-info-circle"></i> ${getRecommendation(trend, priceChange)}
+                    </p>
                 </div>`;
         }
 
         function displayComparisonResults(data) {
-            let metricsHTML = '<div class="text-center"><h5 class="mb-3">Model Comparison</h5>';
-            if (data.arima) metricsHTML += `<div class="mb-3"><h6>ARIMA Model</h6><span class="metric-badge accuracy-badge">Accuracy: ${data.arima.metrics.accuracy}%</span><span class="metric-badge rmse-badge">RMSE: ₦${data.arima.metrics.rmse}</span><span class="metric-badge mae-badge">MAE: ₦${data.arima.metrics.mae}</span></div>`;
-            if (data.lstm) metricsHTML += `<div class="mb-3"><h6>LSTM Model</h6><span class="metric-badge accuracy-badge">Accuracy: ${data.lstm.metrics.accuracy}%</span><span class="metric-badge rmse-badge">RMSE: ₦${data.lstm.metrics.rmse}</span><span class="metric-badge mae-badge">MAE: ₦${data.lstm.metrics.mae}</span></div>`;
+            let metricsHTML = '<div class="metrics-row" style="flex-direction:column;align-items:stretch;">';
+            if (data.arima) {
+                metricsHTML += `
+                    <div style="margin-bottom:0.75rem;">
+                        <p style="font-weight:600;margin-bottom:0.5rem;color:var(--forest);">ARIMA Model</p>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <span class="metric-badge accuracy">Accuracy: ${data.arima.metrics.accuracy}%</span>
+                            <span class="metric-badge rmse">RMSE: ₦${data.arima.metrics.rmse}</span>
+                            <span class="metric-badge mae">MAE: ₦${data.arima.metrics.mae}</span>
+                        </div>
+                    </div>`;
+            }
+            if (data.lstm) {
+                metricsHTML += `
+                    <div>
+                        <p style="font-weight:600;margin-bottom:0.5rem;color:var(--forest);">LSTM Model</p>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <span class="metric-badge accuracy">Accuracy: ${data.lstm.metrics.accuracy}%</span>
+                            <span class="metric-badge rmse">RMSE: ₦${data.lstm.metrics.rmse}</span>
+                            <span class="metric-badge mae">MAE: ₦${data.lstm.metrics.mae}</span>
+                        </div>
+                    </div>`;
+            }
             metricsHTML += '</div>';
             document.getElementById('metricsContainer').innerHTML = metricsHTML;
+
             const historical = data.historical;
             const labels = [...historical.map(d => d.date), ...data.dates];
             createComparisonChart(labels, historical.map(d => d.price), data.arima?.predictions, data.lstm?.predictions);
+
             if (data.arima && data.lstm) {
                 const avg = (data.arima.predictions[data.arima.predictions.length - 1] + data.lstm.predictions[data.lstm.predictions.length - 1]) / 2;
                 const cur = historical[historical.length - 1].price;
                 const chg = ((avg - cur) / cur * 100).toFixed(2);
-                document.getElementById('insightsContainer').innerHTML = `<div class="alert alert-info"><h5><i class="fas fa-lightbulb me-2"></i>Consensus Forecast</h5><p class="mb-2"><strong>Average Predicted Price:</strong> ₦${avg.toFixed(2)}</p><p class="mb-0"><strong>Expected Change:</strong> <span class="${chg > 0 ? 'trend-up' : 'trend-down'}">${Math.abs(chg)}% ${chg > 0 ? 'increase' : 'decrease'}</span></p></div>`;
+                document.getElementById('insightsContainer').innerHTML = `
+                    <div class="insights-box">
+                        <h5><i class="fas fa-lightbulb"></i>Consensus Forecast</h5>
+                        <p><strong>Average Predicted Price:</strong> ₦${avg.toFixed(2)}</p>
+                        <p><strong>Expected Change:</strong> <span class="${chg > 0 ? 'trend-up' : 'trend-down'}">
+                            <i class="fas fa-arrow-${chg > 0 ? 'up' : 'down'}"></i> ${Math.abs(chg)}% ${chg > 0 ? 'increase' : 'decrease'}
+                        </span></p>
+                    </div>`;
             }
         }
 
@@ -390,27 +983,123 @@
             const ctx = document.getElementById('priceChart').getContext('2d');
             currentChart = new Chart(ctx, {
                 type: 'line',
-                data: { labels, datasets: [
-                    { label: 'Historical Prices', data: historical, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', borderWidth: 2, pointRadius: 0, tension: 0.4 },
-                    { label: `${modelName} Forecast`, data: forecast, borderColor: '#ff6f00', backgroundColor: 'rgba(255,111,0,0.1)', borderWidth: 2, borderDash: [5,5], pointRadius: 0, tension: 0.4 }
-                ]},
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' }, tooltip: { mode: 'index', intersect: false, callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) } } }, scales: { y: { beginAtZero: false, ticks: { callback: v => '₦' + v.toFixed(0) } } } }
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Historical Prices',
+                            data: historical,
+                            borderColor: '#2e7d32',
+                            backgroundColor: 'rgba(46,125,50,0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.4
+                        },
+                        {
+                            label: `${modelName} Forecast`,
+                            data: forecast,
+                            borderColor: '#e6a817',
+                            backgroundColor: 'rgba(230,168,23,0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: { callback: v => '₦' + v.toFixed(0) }
+                        }
+                    }
+                }
             });
         }
 
         function createComparisonChart(labels, historical, arimaPred, lstmPred) {
             if (currentChart) currentChart.destroy();
-            const datasets = [{ label: 'Historical Prices', data: historical, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', borderWidth: 2, pointRadius: 0, tension: 0.4 }];
-            if (arimaPred) datasets.push({ label: 'ARIMA Forecast', data: new Array(historical.length).fill(null).concat(arimaPred), borderColor: '#2196f3', backgroundColor: 'rgba(33,150,243,0.1)', borderWidth: 2, borderDash: [5,5], pointRadius: 0, tension: 0.4 });
-            if (lstmPred) datasets.push({ label: 'LSTM Forecast', data: new Array(historical.length).fill(null).concat(lstmPred), borderColor: '#ff6f00', backgroundColor: 'rgba(255,111,0,0.1)', borderWidth: 2, borderDash: [10,5], pointRadius: 0, tension: 0.4 });
+            const datasets = [
+                {
+                    label: 'Historical Prices',
+                    data: historical,
+                    borderColor: '#2e7d32',
+                    backgroundColor: 'rgba(46,125,50,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4
+                }
+            ];
+            if (arimaPred) {
+                datasets.push({
+                    label: 'ARIMA Forecast',
+                    data: new Array(historical.length).fill(null).concat(arimaPred),
+                    borderColor: '#2196f3',
+                    backgroundColor: 'rgba(33,150,243,0.1)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    tension: 0.4
+                });
+            }
+            if (lstmPred) {
+                datasets.push({
+                    label: 'LSTM Forecast',
+                    data: new Array(historical.length).fill(null).concat(lstmPred),
+                    borderColor: '#e6a817',
+                    backgroundColor: 'rgba(230,168,23,0.1)',
+                    borderWidth: 2,
+                    borderDash: [10, 5],
+                    pointRadius: 0,
+                    tension: 0.4
+                });
+            }
             const ctx = document.getElementById('priceChart').getContext('2d');
-            currentChart = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' }, tooltip: { mode: 'index', intersect: false, callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) } } }, scales: { y: { beginAtZero: false, ticks: { callback: v => '₦' + v.toFixed(0) } } } } });
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: { callback: v => '₦' + v.toFixed(0) }
+                        }
+                    }
+                }
+            });
         }
 
         function getRecommendation(trend, change) {
             const abs = Math.abs(change);
-            if (trend === 'increase') return abs > 10 ? 'Strong upward trend expected. Consider holding current stock or buying more if planning to sell later.' : 'Moderate price increase expected. Good time for steady sales.';
-            return abs > 10 ? 'Significant price drop expected. Consider selling current stock soon.' : 'Slight price decrease expected. Monitor market closely.';
+            if (trend === 'increase') {
+                return abs > 10
+                    ? 'Strong upward trend expected. Consider holding current stock or buying more if planning to sell later.'
+                    : 'Moderate price increase expected. Good time for steady sales.';
+            }
+            return abs > 10
+                ? 'Significant price drop expected. Consider selling current stock soon.'
+                : 'Slight price decrease expected. Monitor market closely.';
         }
 
         async function loadStatistics() {
@@ -421,41 +1110,86 @@
                 const res = await fetch(`${API_BASE}/statistics/${commodity}`, { credentials: 'include' });
                 const stats = await res.json();
                 document.getElementById('statsCards').innerHTML = `
-                    <div class="col-md-3 col-sm-6"><div class="stat-card"><div class="stat-label">Current Price</div><div class="stat-value">₦${stats.current_price.toFixed(2)}</div></div></div>
-                    <div class="col-md-3 col-sm-6"><div class="stat-card"><div class="stat-label">Average Price</div><div class="stat-value">₦${stats.average.toFixed(2)}</div></div></div>
-                    <div class="col-md-3 col-sm-6"><div class="stat-card"><div class="stat-label">Min / Max</div><div class="stat-value"><small>₦${stats.min}</small> / <small>₦${stats.max}</small></div></div></div>
-                    <div class="col-md-3 col-sm-6"><div class="stat-card"><div class="stat-label">Price Trend</div><div class="stat-value ${stats.trend === 'upward' ? 'trend-up' : 'trend-down'}"><i class="fas fa-arrow-${stats.trend === 'upward' ? 'up' : 'down'}"></i> ${stats.trend}</div></div></div>
-                    <div class="col-md-4 col-sm-6"><div class="stat-card"><div class="stat-label">Volatility</div><div class="stat-value">${stats.volatility}%</div></div></div>
-                    <div class="col-md-4 col-sm-6"><div class="stat-card"><div class="stat-label">Std Deviation</div><div class="stat-value">₦${stats.std_dev}</div></div></div>
-                    <div class="col-md-4 col-sm-6"><div class="stat-card"><div class="stat-label">Variance</div><div class="stat-value">₦${stats.variance.toFixed(2)}</div></div></div>`;
+                    <div class="stat-card">
+                        <div class="stat-value">₦${stats.current_price.toFixed(2)}</div>
+                        <div class="stat-label">Current Price</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">₦${stats.average.toFixed(2)}</div>
+                        <div class="stat-label">Average Price</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="font-size:1.3rem;">₦${stats.min} / ₦${stats.max}</div>
+                        <div class="stat-label">Min / Max</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value ${stats.trend === 'upward' ? 'trend-up' : 'trend-down'}">
+                            <i class="fas fa-arrow-${stats.trend === 'upward' ? 'up' : 'down'}"></i> ${stats.trend}
+                        </div>
+                        <div class="stat-label">Price Trend</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.volatility}%</div>
+                        <div class="stat-label">Volatility</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">₦${stats.std_dev}</div>
+                        <div class="stat-label">Std Deviation</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">₦${stats.variance.toFixed(2)}</div>
+                        <div class="stat-label">Variance</div>
+                    </div>`;
                 document.getElementById('statisticsResults').style.display = 'block';
-            } catch (e) { alert('Failed to load statistics'); }
-            finally { hideLoading(); }
+            } catch (e) {
+                alert('Failed to load statistics');
+            } finally {
+                hideLoading();
+            }
         }
 
         async function addPrice() {
             const commodity = document.getElementById('newCommodity').value.trim();
             const price = parseFloat(document.getElementById('newPrice').value);
             const date = document.getElementById('newDate').value;
-            if (!commodity || !price || !date) { showMessage('Please fill in all fields', 'danger'); return; }
+            if (!commodity || !price || !date) {
+                showMessage('Please fill in all fields', false);
+                return;
+            }
             try {
-                const res = await fetch(`${API_BASE}/add_price`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ commodity, price, date }) });
+                const res = await fetch(`${API_BASE}/add_price`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ commodity, price, date })
+                });
                 const result = await res.json();
                 if (res.ok) {
-                    showMessage('Price added successfully!', 'success');
+                    showMessage('Price added successfully!', true);
                     document.getElementById('newCommodity').value = '';
                     document.getElementById('newPrice').value = '';
                     setTodayDate();
                     loadCommodities();
-                } else { showMessage('Failed to add price: ' + result.error, 'danger'); }
-            } catch (e) { showMessage('Failed to add price. Please try again.', 'danger'); }
+                } else {
+                    showMessage('Failed to add price: ' + result.error, false);
+                }
+            } catch (e) {
+                showMessage('Failed to add price. Please try again.', false);
+            }
         }
 
-        function showMessage(message, type) {
+        function showMessage(message, isSuccess) {
+            const cls = isSuccess ? 'alert-success' : 'alert-danger';
+            const icon = isSuccess ? 'fa-check-circle' : 'fa-times-circle';
             const container = document.getElementById('addPriceMessage');
-            container.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+            container.innerHTML = `<div class="alert ${cls}"><i class="fas ${icon}"></i>${message}</div>`;
             setTimeout(() => { container.innerHTML = ''; }, 5000);
         }
+
+        // Close modal when clicking outside
+        document.getElementById('profileModal').addEventListener('click', function(e) {
+            if (e.target === this) closeProfileModal();
+        });
     </script>
 </body>
 </html>

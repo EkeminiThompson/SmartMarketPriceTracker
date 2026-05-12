@@ -299,6 +299,24 @@ def admin_page():
     return render_template('admin.html')
 
 # ─────────────────────────────────────────────
+# ML ANALYTICS PAGE  ← NEW
+# ─────────────────────────────────────────────
+
+@app.route('/analytics')
+def analytics_page():
+    """
+    ML Analytics dashboard — confusion matrix, feature importance,
+    residuals, ROC curve, confidence bands, etc.
+
+    Access: any authenticated user.
+    Optionally accepts ?commodity=Rice to pre-select on page load
+    (the JS reads the query param and sets the dropdown).
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('ml_analytics.html')
+
+# ─────────────────────────────────────────────
 # AUTH API
 # ─────────────────────────────────────────────
 
@@ -390,11 +408,9 @@ def forgot_password():
     user = conn.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
 
     if not user:
-        # Don't reveal if email exists — still return success
         conn.close()
         return jsonify({'message': 'If that email exists, a reset token has been generated.'})
 
-    # Generate a 6-digit reset token (in production, email this; here we return it for demo)
     token = str(secrets.randbelow(900000) + 100000)
     expiry = (datetime.now() + timedelta(minutes=15)).isoformat()
     conn.execute('UPDATE users SET reset_token=?, reset_token_expiry=? WHERE email=?',
@@ -403,7 +419,6 @@ def forgot_password():
     conn.close()
     log_activity(user['id'], 'FORGOT_PASSWORD', f'Reset token generated for {email}')
 
-    # In production you would email the token; for demo we return it directly
     return jsonify({
         'message': 'A reset token has been generated.',
         'demo_token': token,  # Remove in production — use email instead
@@ -432,7 +447,6 @@ def reset_password():
         conn.close()
         return jsonify({'error': 'Invalid email or token'}), 400
 
-    # Check expiry
     if user['reset_token_expiry'] and datetime.fromisoformat(user['reset_token_expiry']) < datetime.now():
         conn.close()
         return jsonify({'error': 'Reset token has expired. Please request a new one.'}), 400
@@ -557,7 +571,6 @@ def admin_update_user(user_id):
     if role and role not in ('user', 'admin'):
         return jsonify({'error': 'Role must be user or admin'}), 400
 
-    # Prevent removing last admin
     if role == 'user':
         conn = get_db()
         admin_count = conn.execute(
@@ -597,7 +610,6 @@ def admin_delete_user(user_id):
         conn.close()
         return jsonify({'error': 'User not found'}), 404
 
-    # Prevent deleting last admin
     if user['role'] == 'admin':
         admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
         if admin_count <= 1:
@@ -719,7 +731,6 @@ def add_price():
     data[commodity].append({'date': date, 'price': float(price)})
     data[commodity] = sorted(data[commodity], key=lambda x: x['date'])
     save_data(data)
-    # Also log to DB
     conn = get_db()
     conn.execute('''INSERT INTO price_entries (commodity, price, date, added_by, created_at)
                     VALUES (?, ?, ?, ?, ?)''',
