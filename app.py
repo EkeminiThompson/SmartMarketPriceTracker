@@ -250,40 +250,45 @@ def build_lstm_model(lookback=20):
 
 def predict_arima(prices, forecast_days=30):
     """
-    Train ARIMA model and return:
-      - out-of-sample forecast (list of floats)
-      - REAL test-set metrics: RMSE, MAE, R², accuracy
-    Uses 80/20 train/test split for honest evaluation.
+    Train ARIMA model and return forecast + metrics.
     """
     try:
         if len(prices) < 30:
             return None, None
         
-        # ── 80/20 Train/Test Split ───────────────────────────────────────────
+        # Use 80/20 split
         split_idx = int(len(prices) * 0.8)
         train_prices = prices[:split_idx]
         test_prices = prices[split_idx:]
         
-        # ── Train ARIMA on 80% ──────────────────────────────────────────────
-        fitted = ARIMA(train_prices, order=(3, 1, 0)).fit()
+        # If test set is too small, return None
+        if len(test_prices) < 3:
+            return None, None
         
-        # ── Evaluate on TEST SET (20%) ───────────────────────────────────────
-        # Forecast the test period length
+        # Train on training data only
+        fitted = ARIMA(train_prices, order=(5, 1, 2)).fit()  # Better order
+        
+        # Forecast test period
         test_forecast = fitted.forecast(steps=len(test_prices))
         test_actual = np.array(test_prices)
         test_pred = np.array(test_forecast)
         
-        # Import r2_score if not already available
-        from sklearn.metrics import r2_score
-        
+        # Calculate metrics
         rmse = float(np.sqrt(mean_squared_error(test_actual, test_pred)))
         mae = float(mean_absolute_error(test_actual, test_pred))
-        r2 = float(r2_score(test_actual, test_pred))
-        accuracy = float(round(100 - mae / np.mean(prices) * 100, 2))
         
-        # ── Out-of-sample forecast (future predictions) ──────────────────────
-        # Re-train on ALL data for final forecast
-        final_fitted = ARIMA(prices, order=(3, 1, 0)).fit()
+        # Calculate R² properly
+        ss_res = np.sum((test_actual - test_pred) ** 2)
+        ss_tot = np.sum((test_actual - np.mean(test_actual)) ** 2)
+        
+        # Clamp R² between -1 and 1 for display
+        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+        r2 = max(-1.0, min(1.0, r2))  # Clamp between -1 and 1
+        
+        accuracy = float(round(100 - (mae / np.mean(prices) * 100), 2))
+        
+        # Train on ALL data for final forecast
+        final_fitted = ARIMA(prices, order=(5, 1, 2)).fit()
         forecast = final_fitted.forecast(steps=forecast_days)
         
         return forecast.tolist(), {
@@ -297,67 +302,83 @@ def predict_arima(prices, forecast_days=30):
         print(f"ARIMA Error: {e}")
         return None, None
 
+
 def predict_lstm(prices, forecast_days=30, lookback=20):
     """
-    Train a compact LSTM and return:
-      - out-of-sample forecast (list of floats)
-      - REAL test-set metrics: RMSE, MAE, R², accuracy
-    Uses 80/20 train/test split for honest evaluation.
+    Train LSTM and return forecast + metrics.
     """
     try:
         if len(prices) < lookback + 10:
             return None, None
 
-        # Cache by last 50 prices + forecast window
         cache_key = tuple(prices[-50:]) + (forecast_days,)
         if cache_key in model_cache:
             return model_cache[cache_key]
 
         _load_tensorflow()
         price_array = np.array(prices, dtype=float)
-        X, y, scaler = prepare_lstm_data(price_array, lookback)
+        
+        # Data preparation
+        scaler = MinMaxScaler()
+        scaled = scaler.fit_transform(price_array.reshape(-1, 1))
+        
+        X, y = [], []
+        for i in range(lookback, len(scaled)):
+            X.append(scaled[i - lookback:i, 0])
+            y.append(scaled[i, 0])
+        
+        X = np.array(X)
+        y = np.array(y)
         X3 = X.reshape(X.shape[0], X.shape[1], 1)
 
-        # ── 80/20 Train/Test Split ───────────────────────────────────────────
+        # 80/20 split
         split_idx = int(len(X3) * 0.8)
+        
+        # Ensure we have enough test samples
+        if split_idx >= len(X3) - 2:
+            return None, None
+            
         X_train, X_test = X3[:split_idx], X3[split_idx:]
         y_train, y_test = y[:split_idx], y[split_idx:]
 
-        # ── Train on 80% ─────────────────────────────────────────────────────
+        # Train model
         model = build_lstm_model(lookback)
-        model.fit(X_train, y_train, epochs=20, batch_size=16, verbose=0)
+        model.fit(X_train, y_train, epochs=30, batch_size=16, verbose=0)
 
-        # ── Evaluate on TEST SET (20%) ───────────────────────────────────────
-        test_pred_scaled   = model.predict(X_test, verbose=0)
-        test_pred_unscaled = scaler.inverse_transform(test_pred_scaled).flatten()
-        y_test_unscaled    = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+        # Predict on test set
+        test_pred_scaled = model.predict(X_test, verbose=0)
+        test_pred = scaler.inverse_transform(test_pred_scaled).flatten()
+        y_test_unscaled = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
 
-        # Import r2_score if not already available
-        from sklearn.metrics import r2_score
+        # Calculate metrics
+        rmse = float(np.sqrt(mean_squared_error(y_test_unscaled, test_pred)))
+        mae = float(mean_absolute_error(y_test_unscaled, test_pred))
         
-        rmse     = float(np.sqrt(mean_squared_error(y_test_unscaled, test_pred_unscaled)))
-        mae      = float(mean_absolute_error(y_test_unscaled, test_pred_unscaled))
-        r2       = float(r2_score(y_test_unscaled, test_pred_unscaled))
-        accuracy = float(round(100 - mae / np.mean(prices) * 100, 2))
+        # Calculate R² properly with clamping
+        ss_res = np.sum((y_test_unscaled - test_pred) ** 2)
+        ss_tot = np.sum((y_test_unscaled - np.mean(y_test_unscaled)) ** 2)
+        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+        r2 = max(-1.0, min(1.0, r2))
+        
+        accuracy = float(round(100 - (mae / np.mean(prices) * 100), 2))
 
-        # ── Out-of-sample forecast ───────────────────────────────────────────
+        # Generate forecast
         seq = price_array[-lookback:].copy()
         predictions = []
         for _ in range(forecast_days):
             scaled_seq = scaler.transform(seq.reshape(-1, 1)).reshape(1, lookback, 1)
-            next_val   = float(scaler.inverse_transform(
+            next_val = float(scaler.inverse_transform(
                 model.predict(scaled_seq, verbose=0))[0, 0])
             predictions.append(next_val)
             seq = np.append(seq[1:], next_val)
 
         result = (predictions, {
-            'rmse':     round(rmse, 2),
-            'mae':      round(mae,  2),
-            'r2':       round(r2, 3),  # ← Now included!
+            'rmse': round(rmse, 2),
+            'mae': round(mae, 2),
+            'r2': round(r2, 3),
             'accuracy': accuracy,
         })
 
-        # Evict cache when it grows beyond 5 entries
         if len(model_cache) >= 5:
             model_cache.clear()
         model_cache[cache_key] = result
