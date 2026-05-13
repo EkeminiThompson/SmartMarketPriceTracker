@@ -11,6 +11,7 @@ import secrets
 from functools import wraps
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import r2_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 warnings.filterwarnings('ignore')
