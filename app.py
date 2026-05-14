@@ -8,6 +8,7 @@ import os
 import sqlite3
 import hashlib
 import secrets
+import pickle
 from functools import wraps
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller, acf
@@ -60,6 +61,107 @@ if not os.path.exists(MODELS_DIR):
     os.makedirs(MODELS_DIR)
 
 model_cache = {}
+
+# ─────────────────────────────────────────────
+# MODEL SAVING/LOADING FUNCTIONS
+# ─────────────────────────────────────────────
+
+def get_model_path(commodity: str, model_type: str) -> str:
+    """Generate a unique model filename for a commodity and model type"""
+    safe_name = commodity.replace(' ', '_').lower()
+    return os.path.join(MODELS_DIR, f"{safe_name}_{model_type}.pkl")
+
+def save_model(model_data: dict, commodity: str, model_type: str) -> bool:
+    """Save trained model and its metadata to disk"""
+    try:
+        model_path = get_model_path(commodity, model_type)
+        
+        # Add metadata about when model was trained
+        model_data['metadata'] = {
+            'trained_at': datetime.now().isoformat(),
+            'commodity': commodity,
+            'model_type': model_type,
+            'data_points': len(model_data.get('prices', []))
+        }
+        
+        with open(model_path, 'wb') as f:
+            pickle.dump(model_data, f)
+        
+        # Update cache
+        cache_key = f"{commodity}_{model_type}"
+        model_cache[cache_key] = model_data
+        
+        print(f"✅ Model saved: {model_path}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to save model: {e}")
+        return False
+
+def load_model(commodity: str, model_type: str, current_prices: list = None) -> dict:
+    """Load a saved model if it exists and is still valid"""
+    model_path = get_model_path(commodity, model_type)
+    
+    # Check cache first
+    cache_key = f"{commodity}_{model_type}"
+    if cache_key in model_cache:
+        return model_cache[cache_key]
+    
+    # Check if model file exists
+    if not os.path.exists(model_path):
+        return None
+    
+    try:
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        # Validate model - check if it needs retraining
+        needs_retraining = False
+        
+        # Check if we have new data since last training
+        if current_prices and 'metadata' in model_data:
+            old_data_points = model_data['metadata'].get('data_points', 0)
+            new_data_points = len(current_prices)
+            
+            # Retrain if we have 5+ new data points
+            if new_data_points - old_data_points >= 5:
+                print(f"🔄 New data available for {commodity} ({new_data_points - old_data_points} new points)")
+                needs_retraining = True
+            
+            # Retrain if model is older than 7 days
+            trained_at = datetime.fromisoformat(model_data['metadata']['trained_at'])
+            days_old = (datetime.now() - trained_at).days
+            if days_old >= 7:
+                print(f"🔄 Model for {commodity} is {days_old} days old, retraining recommended")
+                needs_retraining = True
+        
+        if not needs_retraining:
+            # Update cache
+            model_cache[cache_key] = model_data
+            print(f"✅ Loaded existing model: {model_path}")
+            return model_data
+        else:
+            return None
+            
+    except Exception as e:
+        print(f"❌ Failed to load model: {e}")
+        return None
+
+def delete_model(commodity: str, model_type: str) -> bool:
+    """Delete a saved model"""
+    try:
+        model_path = get_model_path(commodity, model_type)
+        if os.path.exists(model_path):
+            os.remove(model_path)
+            # Remove from cache
+            cache_key = f"{commodity}_{model_type}"
+            if cache_key in model_cache:
+                del model_cache[cache_key]
+            print(f"✅ Deleted model: {model_path}")
+            return True
+        return False
+    except Exception as e:
+        print(f"❌ Failed to delete model: {e}")
+        return False
 
 # ─────────────────────────────────────────────
 # DATABASE
@@ -278,14 +380,22 @@ def _load_tensorflow():
     _tf_loaded = True
 
 # ─────────────────────────────────────────────
-# ARIMA
+# ARIMA WITH MODEL SAVING
 # ─────────────────────────────────────────────
 
-def predict_arima(prices_raw: list, forecast_days: int = 30):
+def predict_arima(prices_raw: list, forecast_days: int = 30, commodity: str = None):
     try:
         if len(prices_raw) < 30:
             return None, None
 
+        # Try to load existing model if commodity name provided
+        if commodity:
+            saved_model = load_model(commodity, 'arima', prices_raw)
+            if saved_model:
+                # Use the saved model's forecast
+                return saved_model.get('forecast'), saved_model.get('metrics')
+
+        # No valid saved model found - train new model
         prices = remove_outliers_iqr(np.array(prices_raw, dtype=float))
         prices = smooth_prices(prices, window=5)
 
@@ -352,6 +462,16 @@ def predict_arima(prices_raw: list, forecast_days: int = 30):
         metrics['test_predictions'] = test_pred.tolist()
         metrics['test_actuals'] = test_actual.tolist()
         metrics['arima_order'] = list(order)
+        
+        # Save the trained model
+        if commodity:
+            model_data = {
+                'forecast': forecast,
+                'metrics': metrics,
+                'prices': prices_raw,
+                'order': order
+            }
+            save_model(model_data, commodity, 'arima')
 
         return forecast, metrics
 
@@ -360,7 +480,7 @@ def predict_arima(prices_raw: list, forecast_days: int = 30):
         return None, None
 
 # ─────────────────────────────────────────────
-# LSTM
+# LSTM WITH MODEL SAVING
 # ─────────────────────────────────────────────
 
 def build_lstm_model(lookback: int):
@@ -376,10 +496,16 @@ def build_lstm_model(lookback: int):
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001), loss='mse')
     return model
 
-def predict_lstm(prices_raw: list, forecast_days: int = 30, lookback: int = 30):
+def predict_lstm(prices_raw: list, forecast_days: int = 30, lookback: int = 30, commodity: str = None):
     try:
         if len(prices_raw) < lookback + 10:
             return None, None
+
+        # Try to load existing model if commodity name provided
+        if commodity:
+            saved_model = load_model(commodity, 'lstm', prices_raw)
+            if saved_model:
+                return saved_model.get('forecast'), saved_model.get('metrics')
 
         _load_tensorflow()
 
@@ -460,6 +586,15 @@ def predict_lstm(prices_raw: list, forecast_days: int = 30, lookback: int = 30):
 
         metrics['test_predictions'] = test_pred.tolist()
         metrics['test_actuals'] = test_actual.tolist()
+
+        # Save the trained model
+        if commodity:
+            model_data = {
+                'forecast': predictions_final,
+                'metrics': metrics,
+                'prices': prices_raw
+            }
+            save_model(model_data, commodity, 'lstm')
 
         return predictions_final, metrics
 
@@ -690,10 +825,10 @@ def predict():
                       for i in range(forecast_days)]
     
     if model_type.lower() == 'arima':
-        predictions, metrics = predict_arima(prices, forecast_days)
+        predictions, metrics = predict_arima(prices, forecast_days, commodity)
         model_name = 'ARIMA'
     elif model_type.lower() == 'lstm':
-        predictions, metrics = predict_lstm(prices, forecast_days)
+        predictions, metrics = predict_lstm(prices, forecast_days, 30, commodity)
         model_name = 'LSTM'
     else:
         return jsonify({'error': 'Invalid model type'}), 400
@@ -725,8 +860,8 @@ def compare_models():
     forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d')
                       for i in range(forecast_days)]
     
-    arima_pred, arima_metrics = predict_arima(prices, forecast_days)
-    lstm_pred, lstm_metrics = predict_lstm(prices, forecast_days)
+    arima_pred, arima_metrics = predict_arima(prices, forecast_days, commodity)
+    lstm_pred, lstm_metrics = predict_lstm(prices, forecast_days, 30, commodity)
     
     ensemble_pred = None
     if arima_pred and lstm_pred and len(arima_pred) == len(lstm_pred):
@@ -778,6 +913,7 @@ def add_price():
     data[commodity] = sorted(data[commodity], key=lambda x: x['date'])
     save_data(data)
     
+    # Clear model cache when new data is added
     model_cache.clear()
     
     with get_db() as conn:
@@ -952,6 +1088,37 @@ def admin_delete_commodity():
     model_cache.clear()
     log_activity(session['user_id'], 'DELETE_COMMODITY', commodity)
     return jsonify({'message': f'{commodity} deleted successfully'})
+
+@app.route('/api/admin/models', methods=['GET'])
+@admin_required
+def list_models():
+    """List all saved models"""
+    models = []
+    for filename in os.listdir(MODELS_DIR):
+        if filename.endswith('.pkl'):
+            model_path = os.path.join(MODELS_DIR, filename)
+            try:
+                with open(model_path, 'rb') as f:
+                    model_data = pickle.load(f)
+                    models.append({
+                        'filename': filename,
+                        'commodity': model_data.get('metadata', {}).get('commodity'),
+                        'model_type': model_data.get('metadata', {}).get('model_type'),
+                        'trained_at': model_data.get('metadata', {}).get('trained_at'),
+                        'size_bytes': os.path.getsize(model_path)
+                    })
+            except Exception as e:
+                models.append({'filename': filename, 'error': 'Corrupted file'})
+    return jsonify({'models': models})
+
+@app.route('/api/admin/models/<commodity>/<model_type>', methods=['DELETE'])
+@admin_required
+def admin_delete_model(commodity, model_type):
+    """Delete a saved model"""
+    if delete_model(commodity, model_type):
+        log_activity(session['user_id'], 'DELETE_MODEL', f'{commodity} {model_type}')
+        return jsonify({'message': f'Model for {commodity} ({model_type}) deleted successfully'})
+    return jsonify({'error': 'Model not found'}), 404
 
 @app.route('/api/user/profile', methods=['PUT'])
 @login_required

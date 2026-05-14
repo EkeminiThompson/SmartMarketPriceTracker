@@ -28,6 +28,8 @@
         .badge-user { background: var(--primary); }
         .badge-active { background: #43a047; }
         .badge-inactive { background: #757575; }
+        .badge-arima { background: #1976d2; }
+        .badge-lstm { background: #f57c00; }
         .btn-sm { border-radius: 8px; }
         .modal-header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
         .modal-header .btn-close { filter: invert(1); }
@@ -36,6 +38,12 @@
         .section-panel { display: none; }
         .section-panel.active { display: block; }
         #toastContainer { position: fixed; top: 70px; right: 20px; z-index: 9999; }
+        .model-card { background: white; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .model-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .model-info { font-size: 0.85rem; }
+        .model-actions { display: flex; gap: 0.5rem; }
+        .btn-icon { padding: 0.25rem 0.5rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
     </style>
 </head>
 <body>
@@ -73,6 +81,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showSection('models')">
+                        <i class="fas fa-brain me-2"></i>Models
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="#" onclick="showSection('activity')">
                         <i class="fas fa-history me-2"></i>Activity Log
                     </a>
@@ -91,6 +104,12 @@
                     <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Active Users</div><div class="stat-value" id="statActive">–</div></div></div>
                     <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Admins</div><div class="stat-value" id="statAdmins">–</div></div></div>
                     <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Commodities</div><div class="stat-value" id="statCommodities">–</div></div></div>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Saved Models</div><div class="stat-value" id="statModels">–</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">ARIMA Models</div><div class="stat-value" id="statArimaModels">–</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">LSTM Models</div><div class="stat-value" id="statLstmModels">–</div></div></div>
+                    <div class="col-md-3"><div class="stat-card"><div class="stat-label text-muted small">Total Storage</div><div class="stat-value" id="statStorage">–</div></div></div>
                 </div>
                 <h5 class="fw-bold mb-3">Recent Activity</h5>
                 <div class="table-responsive">
@@ -128,6 +147,34 @@
                         <thead><tr><th>Commodity</th><th>Data Points</th><th>Latest Price</th><th>Actions</th></tr></thead>
                         <tbody id="commoditiesTable"></tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Models -->
+            <div id="section-models" class="section-panel">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold mb-0"><i class="fas fa-brain me-2 text-success"></i>Trained Models</h4>
+                    <div>
+                        <button class="btn btn-outline-primary btn-sm me-2" onclick="refreshModels()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteAllModels()">
+                            <i class="fas fa-trash-alt me-1"></i>Delete All
+                        </button>
+                    </div>
+                </div>
+                <div id="modelsContainer" class="stats-grid">
+                    <div class="text-center py-5 text-muted">Loading models...</div>
+                </div>
+                <div class="mt-4 alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Model Management Tips:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Models are automatically saved after training and reused for faster predictions</li>
+                        <li>Models are automatically retrained when 5+ new data points are added or after 7 days</li>
+                        <li>Delete a model to force retraining on the next prediction request</li>
+                        <li>ARIMA models are statistical, LSTM models use deep learning</li>
+                    </ul>
                 </div>
             </div>
 
@@ -217,11 +264,17 @@
     let allUsers = [];
 
     async function init() {
-        const me = await fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json());
-        document.getElementById('navUsername').textContent = `👤 ${me.username} (Admin)`;
-        await loadStats();
-        await loadUsers();
-        await loadCommodities();
+        try {
+            const me = await fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json());
+            document.getElementById('navUsername').textContent = `👤 ${me.username} (Admin)`;
+            await loadStats();
+            await loadUsers();
+            await loadCommodities();
+            await loadModels();
+        } catch (e) {
+            console.error('Init error:', e);
+            showToast('Failed to load admin panel', 'danger');
+        }
     }
 
     function showSection(name) {
@@ -231,24 +284,50 @@
         event.target.closest('.nav-link').classList.add('active');
 
         if (name === 'activity') loadActivityLog();
+        if (name === 'models') loadModels();
     }
 
     async function loadStats() {
-        const data = await fetch('/api/admin/stats', { credentials: 'include' }).then(r => r.json());
-        document.getElementById('statTotal').textContent = data.total_users;
-        document.getElementById('statActive').textContent = data.active_users;
-        document.getElementById('statAdmins').textContent = data.admin_count;
-        document.getElementById('statCommodities').textContent = data.total_commodities;
+        try {
+            const data = await fetch('/api/admin/stats', { credentials: 'include' }).then(r => r.json());
+            document.getElementById('statTotal').textContent = data.total_users;
+            document.getElementById('statActive').textContent = data.active_users;
+            document.getElementById('statAdmins').textContent = data.admin_count;
+            document.getElementById('statCommodities').textContent = data.total_commodities;
 
-        const tbody = document.getElementById('recentActivity');
-        tbody.innerHTML = data.recent_activity.map(a => `
-            <tr>
-                <td><span class="fw-semibold">${a.username || '–'}</span></td>
-                <td><span class="badge bg-secondary">${a.action}</span></td>
-                <td class="text-muted small">${a.details || '–'}</td>
-                <td class="text-muted small">${formatDate(a.created_at)}</td>
-            </tr>
-        `).join('');
+            const tbody = document.getElementById('recentActivity');
+            tbody.innerHTML = data.recent_activity.map(a => `
+                <tr>
+                    <td><span class="fw-semibold">${a.username || '–'}</span></td>
+                    <td><span class="badge bg-secondary">${a.action}</span></td>
+                    <td class="text-muted small">${a.details || '–'}</td>
+                    <td class="text-muted small">${formatDate(a.created_at)}</td>
+                </tr>
+            `).join('');
+
+            // Load model stats
+            await loadModelStats();
+        } catch (e) {
+            console.error('Error loading stats:', e);
+        }
+    }
+
+    async function loadModelStats() {
+        try {
+            const data = await fetch('/api/admin/models', { credentials: 'include' }).then(r => r.json());
+            const models = data.models || [];
+            const arimaCount = models.filter(m => m.model_type === 'arima').length;
+            const lstmCount = models.filter(m => m.model_type === 'lstm').length;
+            const totalSize = models.reduce((sum, m) => sum + (m.size_bytes || 0), 0);
+            const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+            
+            document.getElementById('statModels').textContent = models.length;
+            document.getElementById('statArimaModels').textContent = arimaCount;
+            document.getElementById('statLstmModels').textContent = lstmCount;
+            document.getElementById('statStorage').textContent = `${sizeMB} MB`;
+        } catch (e) {
+            console.error('Error loading model stats:', e);
+        }
     }
 
     async function loadUsers() {
@@ -380,13 +459,121 @@
                         <i class="fas fa-trash me-1"></i>Delete
                     </button>
                 </td>
-            </tr>`;
+            </table>`;
         }));
         tbody.innerHTML = rows.join('');
     }
 
+    async function loadModels() {
+        try {
+            const data = await fetch('/api/admin/models', { credentials: 'include' }).then(r => r.json());
+            const models = data.models || [];
+            const container = document.getElementById('modelsContainer');
+            
+            if (models.length === 0) {
+                container.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-database fa-3x mb-3"></i><br>No saved models found.<br>Models will be automatically saved when you make predictions.</div>';
+                return;
+            }
+            
+            container.innerHTML = models.map(model => `
+                <div class="model-card">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1"><i class="fas ${model.model_type === 'arima' ? 'fa-chart-line' : 'fa-brain'} me-2"></i>${escHtml(model.commodity)}</h6>
+                            <span class="badge ${model.model_type === 'arima' ? 'badge-arima' : 'badge-lstm'}">${model.model_type.toUpperCase()}</span>
+                        </div>
+                        <div class="model-actions">
+                            <button class="btn btn-outline-info btn-sm btn-icon" onclick="viewModelDetails('${model.commodity}', '${model.model_type}')" title="View Details">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm btn-icon" onclick="confirmDeleteModel('${model.commodity}', '${model.model_type}')" title="Delete Model">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="model-info mt-2">
+                        <div class="text-muted"><small><i class="far fa-calendar-alt me-1"></i>Trained: ${formatDate(model.trained_at)}</small></div>
+                        <div class="text-muted"><small><i class="fas fa-hdd me-1"></i>Size: ${(model.size_bytes / 1024).toFixed(2)} KB</small></div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            console.error('Error loading models:', e);
+            document.getElementById('modelsContainer').innerHTML = '<div class="alert alert-danger">Failed to load models</div>';
+        }
+    }
+
+    async function viewModelDetails(commodity, modelType) {
+        showToast(`Model: ${commodity} (${modelType.toUpperCase()})`, 'info');
+        // You can expand this to show more details in a modal
+    }
+
+    function confirmDeleteModel(commodity, modelType) {
+        document.getElementById('deleteMessage').innerHTML = `Delete ${modelType.toUpperCase()} model for <strong>${commodity}</strong>? This will force retraining on next prediction.`;
+        const btn = document.getElementById('confirmDeleteBtn');
+        btn.onclick = () => deleteModel(commodity, modelType);
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    async function deleteModel(commodity, modelType) {
+        try {
+            const res = await fetch(`/api/admin/models/${commodity}/${modelType}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            const data = await res.json();
+            bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+            
+            if (res.ok) {
+                showToast(data.message, 'success');
+                await loadModels();
+                await loadModelStats();
+            } else {
+                showToast(data.error, 'danger');
+            }
+        } catch (e) {
+            showToast('Error deleting model', 'danger');
+        }
+    }
+
+    function confirmDeleteAllModels() {
+        document.getElementById('deleteMessage').innerHTML = `Delete ALL saved models? This action cannot be undone and will force retraining of all models.`;
+        const btn = document.getElementById('confirmDeleteBtn');
+        btn.onclick = () => deleteAllModels();
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    async function deleteAllModels() {
+        try {
+            const data = await fetch('/api/admin/models', { credentials: 'include' }).then(r => r.json());
+            const models = data.models || [];
+            let deleted = 0;
+            
+            for (const model of models) {
+                const res = await fetch(`/api/admin/models/${model.commodity}/${model.model_type}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (res.ok) deleted++;
+            }
+            
+            bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+            showToast(`Deleted ${deleted} models successfully`, 'success');
+            await loadModels();
+            await loadModelStats();
+        } catch (e) {
+            showToast('Error deleting models', 'danger');
+        }
+    }
+
+    function refreshModels() {
+        loadModels();
+        loadModelStats();
+        showToast('Refreshing model list...', 'info');
+    }
+
     function confirmDeleteCommodity(name) {
-        document.getElementById('deleteMessage').innerHTML = `Delete all data for <strong>${name}</strong>? This cannot be undone.`;
+        document.getElementById('deleteMessage').innerHTML = `Delete all data for <strong>${name}</strong>? This will also delete associated models. This cannot be undone.`;
         const btn = document.getElementById('confirmDeleteBtn');
         btn.onclick = () => deleteCommodity(name);
         new bootstrap.Modal(document.getElementById('deleteModal')).show();
@@ -405,6 +592,7 @@
             showToast(data.message, 'success');
             loadCommodities();
             loadStats();
+            loadModels();
         } else {
             showToast(data.error, 'danger');
         }
@@ -435,6 +623,7 @@
     }
 
     function escHtml(str) {
+        if (!str) return '';
         return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
