@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ML Analytics Dashboard — Market Price Tracker</title>
+    <title>ML Analytics — Market Price Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -14,1122 +14,1253 @@
             --gold: #e6a817; --cream: #faf6ef; --ink: #1c1c1c;
             --muted: #6b7566; --border: #d4dcc8;
             --error: #c0392b; --success: #1e8449; --info: #1a5276;
-            --surface: #f8faf6;
+            --surface: #f8faf6; --purple: #7b1fa2;
         }
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--cream);
-            color: var(--ink);
-            min-height: 100vh;
-        }
+        body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; }
 
-        /* ── Header ── */
+        /* ── HEADER ── */
         .page-header {
             background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
-            padding: 1.25rem 2rem;
-            color: white;
-            box-shadow: 0 2px 15px rgba(26,61,36,0.15);
-            position: relative;
-            overflow: hidden;
+            padding: 1.25rem 2rem; color: white;
+            box-shadow: 0 2px 15px rgba(26,61,36,0.18); position: relative; overflow: hidden;
         }
         .page-header::before {
-            content: '';
-            position: absolute; inset: 0;
-            background: radial-gradient(circle at 80% 20%, rgba(230,168,23,0.15) 0%, transparent 50%);
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at 80% 20%, rgba(230,168,23,0.18) 0%, transparent 55%);
         }
-        .header-content {
-            max-width: 1600px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-            flex-wrap: wrap;
-            position: relative;
-        }
+        .header-content { max-width: 1600px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; position: relative; }
         .brand { display: flex; align-items: center; gap: 0.75rem; }
-        .brand-dot {
-            width: 10px; height: 10px; border-radius: 50%;
-            background: var(--gold);
-            box-shadow: 0 0 12px var(--gold);
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        .page-title { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: 0.15rem; }
-        .page-subtitle { font-size: 0.78rem; opacity: 0.75; font-weight: 400; }
-        .header-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-        .back-link {
-            color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.85rem;
-            display: flex; align-items: center; gap: 0.4rem;
-            padding: 0.4rem 0.8rem; border-radius: 8px; transition: all 0.2s;
-        }
-        .back-link:hover { background: rgba(255,255,255,0.15); color: white; }
-        .admin-link {
-            background: var(--gold); color: var(--forest);
-            padding: 0.4rem 0.8rem; border-radius: 8px;
-            text-decoration: none; font-size: 0.85rem; font-weight: 600;
-            display: none; align-items: center; gap: 0.4rem; transition: all 0.2s;
-        }
+        .brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 12px var(--gold); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        .page-title { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: .15rem; }
+        .page-subtitle { font-size: .78rem; opacity: .75; font-weight: 400; }
+        .header-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+        .back-link { color: rgba(255,255,255,.8); text-decoration: none; font-size: .85rem; display: flex; align-items: center; gap: .4rem; padding: .4rem .8rem; border-radius: 8px; transition: all .2s; }
+        .back-link:hover { background: rgba(255,255,255,.15); color: white; }
+        .admin-link { background: var(--gold); color: var(--forest); padding: .4rem .8rem; border-radius: 8px; text-decoration: none; font-size: .85rem; font-weight: 600; display: none; align-items: center; gap: .4rem; }
         .admin-link:hover { background: #ffb733; }
 
-        /* ── Controls Bar ── */
-        .controls-bar {
-            background: white;
-            border-bottom: 2px solid var(--border);
-            padding: 1.25rem 2rem;
-        }
-        .controls-content {
-            max-width: 1600px; margin: 0 auto;
-            display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;
-        }
-        .control-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 140px; }
-        .control-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
-        .control-select, .control-input {
-            background: var(--surface); border: 2px solid var(--border);
-            color: var(--ink); border-radius: 8px; padding: 0.6rem 0.9rem;
-            font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
-            cursor: pointer; transition: border-color 0.2s;
-        }
-        .control-select:focus, .control-input:focus {
-            outline: none; border-color: var(--leaf);
-            box-shadow: 0 0 0 3px rgba(46,125,50,0.1);
-        }
-        .btn-run {
-            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
-            color: white; border: none; border-radius: 8px;
-            padding: 0.6rem 1.5rem; font-family: 'DM Sans', sans-serif;
-            font-weight: 600; font-size: 0.9rem; cursor: pointer;
-            transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem; white-space: nowrap;
-        }
-        .btn-run:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(46,125,50,0.3); }
-        .btn-run:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        #statusBadge {
-            display: none;
-            background: linear-gradient(135deg, var(--success) 0%, #27ae60 100%);
-            color: white; padding: 0.4rem 0.9rem; border-radius: 8px;
-            font-size: 0.8rem; font-weight: 600;
-        }
+        /* ── CONTROLS ── */
+        .controls-bar { background: white; border-bottom: 2px solid var(--border); padding: 1.25rem 2rem; }
+        .controls-content { max-width: 1600px; margin: 0 auto; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+        .control-group { display: flex; flex-direction: column; gap: .4rem; flex: 1; min-width: 140px; }
+        .control-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+        .control-select, .control-input { background: var(--surface); border: 2px solid var(--border); color: var(--ink); border-radius: 8px; padding: .6rem .9rem; font-family: 'DM Sans', sans-serif; font-size: .9rem; cursor: pointer; transition: border-color .2s; }
+        .control-select:focus, .control-input:focus { outline: none; border-color: var(--leaf); box-shadow: 0 0 0 3px rgba(46,125,50,.1); }
+        .btn-run { background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%); color: white; border: none; border-radius: 8px; padding: .6rem 1.5rem; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: .9rem; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
+        .btn-run:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(46,125,50,.3); }
+        .btn-run:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+        #statusBadge { display: none; background: linear-gradient(135deg, var(--success) 0%, #27ae60 100%); color: white; padding: .4rem .9rem; border-radius: 8px; font-size: .8rem; font-weight: 600; }
 
-        /* ── Main Grid ── */
-        .main-grid {
-            max-width: 1600px; margin: 0 auto;
-            padding: 1.5rem 2rem;
-            display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.25rem;
-        }
+        /* ── GRID ── */
+        .main-grid { max-width: 1600px; margin: 0 auto; padding: 1.5rem 2rem; display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.25rem; }
 
-        /* ── Chart Cards ── */
-        .chart-card {
-            background: white; border: 2px solid var(--border);
-            border-radius: 12px; overflow: hidden;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .chart-card:hover { border-color: var(--lime); box-shadow: 0 4px 15px rgba(124,179,66,0.1); }
+        /* ── CARDS ── */
+        .chart-card { background: white; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+        .chart-card:hover { border-color: var(--lime); box-shadow: 0 4px 15px rgba(124,179,66,.1); }
         .chart-card.col-12 { grid-column: span 12; }
         .chart-card.col-8  { grid-column: span 8; }
         .chart-card.col-6  { grid-column: span 6; }
         .chart-card.col-4  { grid-column: span 4; }
-
-        .card-header {
-            background: linear-gradient(135deg, var(--surface) 0%, #f0f4ec 100%);
-            padding: 1rem 1.25rem; border-bottom: 2px solid var(--border);
-            display: flex; justify-content: space-between; align-items: flex-start;
-        }
-        .card-title { font-size: 0.95rem; font-weight: 600; color: var(--forest); display: flex; align-items: center; gap: 0.5rem; }
+        .card-header { background: linear-gradient(135deg, var(--surface) 0%, #f0f4ec 100%); padding: 1rem 1.25rem; border-bottom: 2px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+        .card-title { font-size: .95rem; font-weight: 600; color: var(--forest); display: flex; align-items: center; gap: .5rem; }
         .card-title i { color: var(--gold); font-size: 1.1rem; }
-        .card-subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
-        .card-badge {
-            background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%);
-            color: white; font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; font-weight: 600;
-        }
+        .card-subtitle { font-size: .75rem; color: var(--muted); margin-top: .2rem; }
+        .card-badge { background: linear-gradient(135deg, var(--forest) 0%, var(--leaf) 100%); color: white; font-size: .72rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; white-space: nowrap; }
         .card-body { padding: 1.25rem; }
 
-        /* ── Metric Tiles ── */
-        .metric-row {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 1rem; margin-bottom: 1rem;
-        }
-        .metric-tile {
-            background: linear-gradient(135deg, var(--surface) 0%, white 100%);
-            border: 2px solid var(--border); border-radius: 10px; padding: 1rem;
-            text-align: center; transition: all 0.2s; cursor: default;
-        }
+        /* ── METRIC TILES ── */
+        .metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .metric-tile { background: linear-gradient(135deg, var(--surface) 0%, white 100%); border: 2px solid var(--border); border-radius: 10px; padding: 1rem; text-align: center; transition: all .2s; cursor: default; position: relative; }
         .metric-tile:hover { border-color: var(--lime); transform: translateY(-2px); }
         .metric-tile .val { font-family: 'DM Serif Display', serif; font-size: 1.4rem; font-weight: 700; color: var(--forest); }
-        .metric-tile .lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-top: 0.3rem; }
+        .metric-tile .lbl { font-size: .7rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-top: .3rem; }
+        .metric-tile .info-icon { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; background: var(--info); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: help; opacity: .7; }
         .metric-tile.accent-blue .val   { color: var(--info); }
         .metric-tile.accent-orange .val { color: var(--gold); }
-        .metric-tile.accent-purple .val { color: #7b1fa2; }
-        /* R² colour variants */
-        .metric-tile .r2-excellent { color: var(--success); }
-        .metric-tile .r2-good      { color: #27ae60; }
-        .metric-tile .r2-ok        { color: var(--gold); }
-        .metric-tile .r2-weak      { color: #e67e22; }
-        .metric-tile .r2-bad       { color: var(--error); }
-        .metric-tile .r2-na        { color: var(--muted); }
+        .metric-tile.accent-purple .val { color: var(--purple); }
+        .metric-tile.accent-teal .val   { color: #00796b; }
+        .r2-excellent { color: var(--success) !important; }
+        .r2-good      { color: #27ae60 !important; }
+        .r2-ok        { color: var(--gold) !important; }
+        .r2-weak      { color: #e67e22 !important; }
+        .r2-bad       { color: var(--error) !important; }
+        .r2-na        { color: var(--muted) !important; }
 
-        /* LSTM warning banner */
-        .lstm-warn {
-            grid-column: 1 / -1;
-            background: rgba(230,168,23,0.1);
-            border: 1.5px solid rgba(230,168,23,0.35);
-            border-radius: 8px;
-            padding: 0.6rem 1rem;
-            font-size: 0.8rem;
-            color: #7a5500;
-            display: flex; align-items: center; gap: 0.5rem;
-        }
+        /* ── MODEL EXPLAIN BOX ── */
+        .model-explain { background: linear-gradient(135deg, rgba(26,61,36,.03) 0%, rgba(46,125,50,.05) 100%); border: 1px solid var(--border); border-left: 4px solid var(--forest); border-radius: 8px; padding: .9rem 1.1rem; margin-bottom: 1rem; font-size: .82rem; line-height: 1.65; color: var(--ink); display:none; }
+        .model-explain strong { color: var(--forest); font-weight: 600; }
+        .model-explain .mv { background: var(--surface); padding: 2px 7px; border-radius: 4px; font-family: 'DM Serif Display', serif; font-weight: 600; color: var(--forest); }
+        .arima-order-tag { display: inline-block; background: rgba(26,82,118,.1); color: var(--info); font-size: .72rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin-left: 4px; }
 
-        /* ── Confusion Matrix ── */
-        .conf-matrix {
-            display: grid; grid-template-columns: auto 1fr 1fr;
-            gap: 4px; padding: 0.5rem;
-        }
-        .conf-cell {
-            padding: 1rem; border-radius: 8px;
-            text-align: center; font-size: 1.2rem; font-weight: 700;
-            transition: transform 0.15s; cursor: default;
-        }
-        .conf-cell:hover { transform: scale(1.05); }
-        .conf-cell.tp { background: rgba(30,132,73,0.15); color: var(--success); border: 2px solid rgba(30,132,73,0.3); }
-        .conf-cell.tn { background: rgba(30,132,73,0.1);  color: var(--success); border: 2px solid rgba(30,132,73,0.2); }
-        .conf-cell.fp { background: rgba(192,57,43,0.15); color: var(--error);   border: 2px solid rgba(192,57,43,0.3); }
-        .conf-cell.fn { background: rgba(192,57,43,0.1);  color: var(--error);   border: 2px solid rgba(192,57,43,0.2); }
-        .conf-cell.header-cell {
-            background: transparent; color: var(--muted);
-            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;
-            display: flex; align-items: center; justify-content: center; border: none;
-        }
-        .conf-cell.header-cell:hover { transform: none; }
-        .conf-pct { font-size: 0.7rem; color: var(--muted); font-weight: 400; display: block; margin-top: 4px; }
+        /* ── STATS STRIP ── */
+        .stats-strip { display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:.75rem; margin-bottom:1rem; }
+        .stat-chip { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem; text-align:center; }
+        .stat-chip .sv { font-family:'DM Serif Display',serif; font-size:1.1rem; color:var(--forest); font-weight:700; }
+        .stat-chip .sl { font-size:.68rem; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); margin-top:.2rem; }
+        .stat-chip.up .sv   { color: var(--success); }
+        .stat-chip.down .sv { color: var(--error); }
 
-        /* ── Progress Bars ── */
-        .prog-row { display: flex; flex-direction: column; gap: 0.75rem; }
-        .prog-item { display: flex; flex-direction: column; gap: 0.4rem; }
-        .prog-label { display: flex; justify-content: space-between; font-size: 0.8rem; }
-        .prog-name { color: var(--ink); font-weight: 500; }
-        .prog-val  { color: var(--muted); font-weight: 600; }
-        .prog-track { height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
-        .prog-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+        /* ── CONFUSION MATRIX ── */
+        .conf-matrix { display:grid; grid-template-columns: auto 1fr 1fr; gap:4px; padding:.5rem; }
+        .conf-cell { padding:1rem; border-radius:8px; text-align:center; font-size:1.2rem; font-weight:700; transition:transform .15s; cursor:default; }
+        .conf-cell:hover { transform:scale(1.05); }
+        .conf-cell.tp { background:rgba(30,132,73,.15); color:var(--success); border:2px solid rgba(30,132,73,.3); }
+        .conf-cell.tn { background:rgba(30,132,73,.10); color:var(--success); border:2px solid rgba(30,132,73,.2); }
+        .conf-cell.fp { background:rgba(192,57,43,.15); color:var(--error);   border:2px solid rgba(192,57,43,.3); }
+        .conf-cell.fn { background:rgba(192,57,43,.10); color:var(--error);   border:2px solid rgba(192,57,43,.2); }
+        .conf-cell.hdr { background:transparent; color:var(--muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; justify-content:center; border:none; font-weight:600; }
+        .conf-cell.hdr:hover { transform:none; }
+        .conf-pct { font-size:.68rem; color:var(--muted); font-weight:400; display:block; margin-top:4px; }
+        .conf-note { font-size:.72rem; color:var(--muted); text-align:center; margin-top:8px; font-style:italic; }
 
-        /* ── Chart Container ── */
-        .chart-wrap { position: relative; }
-        .chart-wrap canvas { display: block; }
+        /* ── HEATMAP ── */
+        .heatmap-wrap { overflow-x:auto; }
+        .heatmap-table { border-collapse:separate; border-spacing:3px; width:100%; table-layout:fixed; }
+        .heatmap-table th { font-size:.72rem; font-weight:600; color:var(--muted); padding:4px 6px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .heatmap-table th.rh { text-align:right; min-width:80px; max-width:90px; padding-right:8px; }
+        .heatmap-cell { height:46px; border-radius:6px; text-align:center; vertical-align:middle; font-size:.78rem; font-weight:600; cursor:default; transition:transform .12s, box-shadow .12s; }
+        .heatmap-cell:hover { transform:scale(1.08); box-shadow:0 2px 10px rgba(0,0,0,.15); z-index:2; position:relative; }
+        .heatmap-legend { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:.75rem; color:var(--muted); }
+        .heatmap-gradient { height:10px; flex:1; border-radius:4px; background:linear-gradient(to right, #c0392b 0%, #e8ede5 50%, #1e8449 100%); }
 
-        /* ── Legend ── */
-        .legend-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.75rem; }
-        .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--muted); }
-        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        /* ── FEATURE BARS ── */
+        .prog-row { display:flex; flex-direction:column; gap:.75rem; }
+        .prog-item { display:flex; flex-direction:column; gap:.4rem; }
+        .prog-label { display:flex; justify-content:space-between; font-size:.8rem; }
+        .prog-name { color:var(--ink); font-weight:500; }
+        .prog-val  { color:var(--muted); font-weight:600; }
+        .prog-track { height:8px; background:var(--surface); border-radius:4px; overflow:hidden; border:1px solid var(--border); }
+        .prog-fill { height:100%; border-radius:4px; transition:width .8s cubic-bezier(.4,0,.2,1); }
 
-        /* ── Loading ── */
-        .loading-state { display: flex; align-items: center; justify-content: center; min-height: 200px; flex-direction: column; gap: 1rem; }
-        .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { font-size: 0.85rem; color: var(--muted); }
-
-        /* ── Toast ── */
-        .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
-        .toast-msg { background: white; border: 2px solid var(--border); border-left: 4px solid var(--success); padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; animation: slideIn 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .toast-msg.error { border-left-color: var(--error); }
+        /* ── MISC ── */
+        .chart-wrap { position:relative; }
+        .legend-row { display:flex; gap:1rem; flex-wrap:wrap; margin-top:.75rem; }
+        .legend-item { display:flex; align-items:center; gap:.4rem; font-size:.78rem; color:var(--muted); }
+        .legend-dot { width:10px; height:10px; border-radius:50%; }
+        .loading-state { display:flex; align-items:center; justify-content:center; min-height:180px; flex-direction:column; gap:1rem; }
+        .spinner { width:28px; height:28px; border:3px solid var(--border); border-top-color:var(--forest); border-radius:50%; animation:spin .7s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .loading-text { font-size:.85rem; color:var(--muted); }
+        .empty-state { padding:2rem; text-align:center; color:var(--muted); font-size:.9rem; }
+        .empty-state i { font-size:2rem; margin-bottom:.5rem; opacity:.5; display:block; }
+        .toast-container { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; display:flex; flex-direction:column; gap:.5rem; }
+        .toast-msg { background:white; border:2px solid var(--border); border-left:4px solid var(--success); padding:.75rem 1rem; border-radius:8px; font-size:.85rem; animation:slideIn .25s ease; box-shadow:0 4px 20px rgba(0,0,0,.15); max-width:320px; }
+        .toast-msg.error { border-left-color:var(--error); }
         @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
 
-        /* ── Responsive ── */
         @media (max-width:1200px) {
-            .chart-card.col-8 { grid-column: span 12; }
-            .chart-card.col-6 { grid-column: span 12; }
+            .chart-card.col-8, .chart-card.col-6 { grid-column:span 12; }
+            .chart-card.col-4 { grid-column:span 6; }
         }
         @media (max-width:768px) {
-            .page-header { padding: 1rem; }
-            .header-content { flex-direction: column; align-items: flex-start; }
-            .header-actions { width: 100%; justify-content: space-between; }
-            .page-title { font-size: 1.2rem; }
-            .controls-bar { padding: 1rem; }
-            .controls-content { flex-direction: column; }
-            .control-group { width: 100%; }
-            .btn-run { width: 100%; justify-content: center; }
-            .main-grid { padding: 1rem; gap: 1rem; }
-            .chart-card.col-4 { grid-column: span 12; }
-            .metric-row { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
-            .conf-cell { padding: 0.75rem 0.5rem; font-size: 1rem; }
-            .toast-container { left: 1rem; right: 1rem; }
+            .page-header, .controls-bar { padding:1rem; }
+            .main-grid { padding:1rem; gap:1rem; }
+            .chart-card.col-4, .chart-card.col-6, .chart-card.col-8 { grid-column:span 12; }
+            .header-actions, .control-group, .btn-run { width:100%; }
+            .btn-run { justify-content:center; }
+            .metric-row { grid-template-columns:repeat(auto-fit, minmax(100px, 1fr)); }
+            .toast-container { left:1rem; right:1rem; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Header -->
-    <div class="page-header">
-        <div class="header-content">
-            <div class="brand">
-                <div class="brand-dot"></div>
-                <div>
-                    <div class="page-title">ML Analytics Dashboard</div>
-                    <div class="page-subtitle">Model evaluation · confusion matrix · feature importance · residuals</div>
-                </div>
+<div class="page-header">
+    <div class="header-content">
+        <div class="brand">
+            <div class="brand-dot"></div>
+            <div>
+                <div class="page-title">ML Analytics Dashboard</div>
+                <div class="page-subtitle">All figures sourced directly from backend · zero synthetic data · walk-forward validated</div>
             </div>
-            <div class="header-actions">
-                <a href="/admin" id="navAdminLink" class="admin-link">
-                    <i class="fas fa-shield-alt"></i>Admin
-                </a>
-                <a href="/" class="back-link">
-                    <i class="fas fa-arrow-left"></i>Back to Dashboard
-                </a>
+        </div>
+        <div class="header-actions">
+            <a href="/admin" id="navAdminLink" class="admin-link"><i class="fas fa-shield-alt"></i>Admin</a>
+            <a href="/" class="back-link"><i class="fas fa-arrow-left"></i>Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<div class="controls-bar">
+    <div class="controls-content">
+        <div class="control-group">
+            <span class="control-label">Commodity</span>
+            <select class="control-select" id="ctrlCommodity"></select>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Primary Model</span>
+            <select class="control-select" id="ctrlModel">
+                <option value="arima">ARIMA</option>
+                <option value="lstm">LSTM</option>
+            </select>
+        </div>
+        <div class="control-group" style="flex:.5;">
+            <span class="control-label">Forecast Days</span>
+            <input type="number" class="control-input" id="ctrlDays" value="30" min="7" max="90">
+        </div>
+        <div class="control-group" style="flex:0;">
+            <span class="control-label">&nbsp;</span>
+            <button class="btn-run" id="btnRun" onclick="runAnalysis()">
+                <i class="fas fa-play"></i>Run Analysis
+            </button>
+        </div>
+        <div style="margin-left:auto;align-self:flex-end;">
+            <span id="statusBadge">✓ Results ready</span>
+        </div>
+    </div>
+</div>
+
+<div class="main-grid">
+
+    <!-- ① PERFORMANCE OVERVIEW -->
+    <div class="chart-card col-12">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-tachometer-alt"></i>Model Performance Overview</div>
+                <div class="card-subtitle" id="overviewSubtitle">Select options and run analysis</div>
+            </div>
+            <span class="card-badge" id="modelBadge">—</span>
+        </div>
+        <div class="card-body">
+            <div id="modelExplanation" class="model-explain"></div>
+            <!-- Market statistics strip from /api/statistics -->
+            <div class="stats-strip" id="statsStrip"></div>
+            <div class="metric-row" id="metricTiles">
+                <div class="metric-tile"><div class="val">—</div><div class="lbl">Dir. Accuracy</div></div>
+                <div class="metric-tile accent-blue"><div class="val">—</div><div class="lbl">RMSE (₦)</div></div>
+                <div class="metric-tile accent-orange"><div class="val">—</div><div class="lbl">MAE (₦)</div></div>
+                <div class="metric-tile accent-purple"><div class="val">—</div><div class="lbl">MAPE (%)</div></div>
+                <div class="metric-tile"><div class="val">—</div><div class="lbl">R² Score</div></div>
             </div>
         </div>
     </div>
 
-    <!-- Controls -->
-    <div class="controls-bar">
-        <div class="controls-content">
-            <div class="control-group">
-                <span class="control-label">Commodity</span>
-                <select class="control-select" id="ctrlCommodity">
-                    <option value="Rice">Rice</option>
-                </select>
+    <!-- ② FORECAST COMPARISON -->
+    <div class="chart-card col-8">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-chart-line"></i>ARIMA vs LSTM vs Ensemble Forecast</div>
+                <div class="card-subtitle">Last 60 historical points + forecast window for all models</div>
             </div>
-            <div class="control-group">
-                <span class="control-label">Primary Model</span>
-                <select class="control-select" id="ctrlModel">
-                    <option value="arima">ARIMA</option>
-                    <option value="lstm">LSTM</option>
-                </select>
-            </div>
-            <div class="control-group" style="flex:0.5;">
-                <span class="control-label">Forecast Window</span>
-                <input type="number" class="control-input" id="ctrlDays" value="30" min="7" max="90">
-            </div>
-            <div class="control-group" style="flex:0;">
-                <span class="control-label">&nbsp;</span>
-                <button class="btn-run" id="btnRun" onclick="runAnalysis()">
-                    <i class="fas fa-play"></i>Run Analysis
-                </button>
-            </div>
-            <div style="margin-left:auto;align-self:flex-end;">
-                <span id="statusBadge">✓ Results ready</span>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="comparisonChart" height="280"></canvas></div>
+            <div class="legend-row">
+                <div class="legend-item"><div class="legend-dot" style="background:#6b7566"></div>Actual</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#1a5276"></div>ARIMA</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#e6a817"></div>LSTM</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#2e7d32"></div>Ensemble</div>
             </div>
         </div>
     </div>
 
-    <!-- Grid -->
-    <div class="main-grid" id="mainGrid">
-
-        <!-- Performance Overview -->
-        <div class="chart-card col-12">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-tachometer-alt"></i>Model Performance Overview</div>
-                    <div class="card-subtitle" id="overviewSubtitle">Select options and run analysis</div>
-                </div>
-                <span class="card-badge" id="modelBadge">—</span>
-            </div>
-            <div class="card-body">
-                <div class="metric-row" id="metricTiles">
-                    <div class="metric-tile"><div class="val">—</div><div class="lbl">Accuracy</div></div>
-                    <div class="metric-tile accent-blue"><div class="val">—</div><div class="lbl">RMSE (₦)</div></div>
-                    <div class="metric-tile accent-orange"><div class="val">—</div><div class="lbl">MAE (₦)</div></div>
-                    <div class="metric-tile accent-purple"><div class="val">—</div><div class="lbl">MAPE (%)</div></div>
-                    <div class="metric-tile"><div class="val">—</div><div class="lbl">R² Score</div></div>
-                </div>
+    <!-- ③ METRIC BAR -->
+    <div class="chart-card col-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-balance-scale"></i>Metric Comparison</div>
+                <div class="card-subtitle">ARIMA vs LSTM — backend test-set values</div>
             </div>
         </div>
-
-        <!-- Model Comparison Chart -->
-        <div class="chart-card col-8">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-chart-line"></i>Model Comparison — ARIMA vs LSTM</div>
-                    <div class="card-subtitle">Historical actuals · both model forecasts</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="comparisonChart" height="280"></canvas></div>
-                <div class="legend-row">
-                    <div class="legend-item"><div class="legend-dot" style="background:#6b7566"></div>Actual</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#1a5276"></div>ARIMA</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#e6a817"></div>LSTM</div>
-                </div>
-            </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="metricBarChart" height="280"></canvas></div>
         </div>
-
-        <!-- Metric Comparison Bars -->
-        <div class="chart-card col-4">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-balance-scale"></i>Metric Comparison</div>
-                    <div class="card-subtitle">ARIMA vs LSTM · horizontal · real scale</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="metricBarChart" height="280"></canvas></div>
-            </div>
-        </div>
-
-        <!-- Confusion Matrix -->
-        <div class="chart-card col-4">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-th"></i>Directional Confusion Matrix</div>
-                    <div class="card-subtitle">Price movement prediction · up / down</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div id="confMatrix" class="conf-matrix">
-                    <div class="loading-state"><div class="spinner"></div><span class="loading-text">awaiting data…</span></div>
-                </div>
-                <div class="metric-row" id="confMetrics" style="margin-top:1rem;"></div>
-            </div>
-        </div>
-
-        <!-- Feature Importance -->
-        <div class="chart-card col-4">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-sort-amount-down"></i>Feature Importance</div>
-                    <div class="card-subtitle">Lag features · rolling stats · seasonality</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div id="featureImportance" class="prog-row">
-                    <div class="loading-state"><div class="spinner"></div><span class="loading-text">awaiting data…</span></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Residuals Distribution -->
-        <div class="chart-card col-4">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-wave-square"></i>Residuals Distribution</div>
-                    <div class="card-subtitle">Prediction error histogram</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="residualChart" height="220"></canvas></div>
-            </div>
-        </div>
-
-        <!-- Residuals Over Time -->
-        <div class="chart-card col-8">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-chart-area"></i>Residuals Over Time</div>
-                    <div class="card-subtitle">Error drift · heteroskedasticity check</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="residualTimeChart" height="200"></canvas></div>
-                <div class="legend-row">
-                    <div class="legend-item"><div class="legend-dot" style="background:#e6a817"></div>Residual</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#c0392b;opacity:0.5"></div>Zero line</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ROC Curve -->
-        <div class="chart-card col-4">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-bezier-curve"></i>ROC Curve</div>
-                    <div class="card-subtitle">Directional classification · AUC score</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="rocChart" height="240"></canvas></div>
-            </div>
-        </div>
-
-        <!-- Forecast Confidence Bands -->
-        <div class="chart-card col-8">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-stream"></i>Forecast with Confidence Bands</div>
-                    <div class="card-subtitle">80% · 95% prediction intervals</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="confidenceChart" height="240"></canvas></div>
-                <div class="legend-row">
-                    <div class="legend-item"><span style="display:inline-block;width:16px;height:2px;background:#2e7d32;vertical-align:middle"></span>&nbsp;Forecast</div>
-                    <div class="legend-item"><span style="display:inline-block;width:12px;height:12px;background:rgba(46,125,50,0.25);border-radius:2px;vertical-align:middle"></span>&nbsp;80% CI</div>
-                    <div class="legend-item"><span style="display:inline-block;width:12px;height:12px;background:rgba(46,125,50,0.12);border-radius:2px;vertical-align:middle"></span>&nbsp;95% CI</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Training Curve -->
-        <div class="chart-card col-6">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-graduation-cap"></i>Training Loss Curve (LSTM)</div>
-                    <div class="card-subtitle">Loss per epoch · convergence check</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="trainingChart" height="230"></canvas></div>
-            </div>
-        </div>
-
-        <!-- Seasonal Decomposition -->
-        <div class="chart-card col-6">
-            <div class="card-header">
-                <div>
-                    <div class="card-title"><i class="fas fa-wave-square"></i>Seasonal Decomposition</div>
-                    <div class="card-subtitle">Trend · seasonal · residual components</div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="chart-wrap"><canvas id="decompChart" height="230"></canvas></div>
-            </div>
-        </div>
-
     </div>
 
-    <!-- Toast container -->
-    <div class="toast-container" id="toastContainer"></div>
+    <!-- ④ CONFIDENCE BANDS -->
+    <div class="chart-card col-8">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-stream"></i>Forecast with Confidence Bands</div>
+                <div class="card-subtitle" id="ciSubtitle">80% · 95% intervals derived from real test-set residual σ</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="confidenceChart" height="240"></canvas></div>
+            <div class="legend-row">
+                <div class="legend-item"><span style="display:inline-block;width:16px;height:2px;background:#2e7d32;vertical-align:middle"></span>&nbsp;Forecast</div>
+                <div class="legend-item"><span style="display:inline-block;width:12px;height:12px;background:rgba(46,125,50,.25);border-radius:2px;vertical-align:middle"></span>&nbsp;80% CI</div>
+                <div class="legend-item"><span style="display:inline-block;width:12px;height:12px;background:rgba(46,125,50,.12);border-radius:2px;vertical-align:middle"></span>&nbsp;95% CI</div>
+            </div>
+        </div>
+    </div>
 
-    <script>
-        // ── Chart.js defaults ─────────────────────────────────────────────────────
-        Chart.defaults.color = '#6b7566';
-        Chart.defaults.font.family = "'DM Sans', sans-serif";
-        Chart.defaults.font.size = 11;
+    <!-- ⑤ CONFUSION MATRIX -->
+    <div class="chart-card col-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-th"></i>Directional Confusion Matrix</div>
+                <div class="card-subtitle">Price ↑↓ classification from test-set predictions</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="confMatrix" class="conf-matrix">
+                <div class="loading-state"><div class="spinner"></div><span class="loading-text">awaiting data…</span></div>
+            </div>
+            <div class="metric-row" id="confMetrics" style="margin-top:1rem;"></div>
+            <div class="conf-note" id="confNote"></div>
+        </div>
+    </div>
 
-        const COLORS = {
-            forest: '#1a3d24', leaf: '#2e7d32', lime: '#7cb342',
-            gold: '#e6a817', info: '#1a5276', error: '#c0392b',
-            success: '#1e8449', muted: '#6b7566', border: '#d4dcc8'
+    <!-- ⑥ RESIDUALS HISTOGRAM -->
+    <div class="chart-card col-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-wave-square"></i>Residuals Distribution</div>
+                <div class="card-subtitle">Error histogram from real test-set residuals</div>
+            </div>
+            <span class="card-badge" id="residualStdBadge">σ = —</span>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="residualChart" height="220"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ⑦ RESIDUALS OVER TIME -->
+    <div class="chart-card col-8">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-chart-area"></i>Residuals Over Time</div>
+                <div class="card-subtitle">Error drift · heteroskedasticity check · real test residuals</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="residualTimeChart" height="200"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ⑧ FEATURE IMPORTANCE -->
+    <div class="chart-card col-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-sort-amount-down"></i>Feature Importance</div>
+                <div class="card-subtitle" id="featSubtitle">From backend model coefficients / correlations</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="featureImportance" class="prog-row">
+                <div class="loading-state"><div class="spinner"></div><span class="loading-text">awaiting data…</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ⑨ ROC CURVE -->
+    <div class="chart-card col-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-bezier-curve"></i>ROC Curve</div>
+                <div class="card-subtitle">Directional classification · threshold sweep · real AUC</div>
+            </div>
+            <span class="card-badge" id="aucBadge">AUC —</span>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="rocChart" height="240"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ⑩ ACTUAL vs PREDICTED scatter -->
+    <div class="chart-card col-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-dot-circle"></i>Actual vs Predicted</div>
+                <div class="card-subtitle">Test-set scatter · perfect prediction = diagonal</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="scatterChart" height="240"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ⑪ TRAINING LOSS (LSTM only) -->
+    <div class="chart-card col-6">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-graduation-cap"></i>Training Loss Curve</div>
+                <div class="card-subtitle" id="trainingSubtitle">Real Keras history · train vs validation loss per epoch</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="trainingChartContainer"></div>
+        </div>
+    </div>
+
+    <!-- ⑫ SEASONAL DECOMPOSITION -->
+    <div class="chart-card col-6">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-wave-square"></i>Seasonal Decomposition</div>
+                <div class="card-subtitle">Additive STL: trend · seasonal (period=7d) · residual</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrap"><canvas id="decompChart" height="230"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ⑬ CROSS-COMMODITY HEATMAP -->
+    <div class="chart-card col-12">
+        <div class="card-header">
+            <div>
+                <div class="card-title"><i class="fas fa-border-all"></i>Cross-Commodity Price Correlation</div>
+                <div class="card-subtitle">Pearson r from actual historical price series · all commodities</div>
+            </div>
+            <span class="card-badge" id="heatmapBadge">—</span>
+        </div>
+        <div class="card-body">
+            <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:.5rem;">
+                    <label style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);">Sort by</label>
+                    <select id="heatmapSort" class="control-select" style="padding:.35rem .7rem;font-size:.82rem;">
+                        <option value="name">Name</option>
+                        <option value="avg_corr">Avg correlation</option>
+                        <option value="volatility">Volatility</option>
+                    </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:.5rem;">
+                    <label style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);">Show values</label>
+                    <input type="checkbox" id="heatmapShowVals" checked>
+                </div>
+                <div id="heatmapHighlight" style="font-size:.8rem;color:var(--muted);margin-left:auto;font-style:italic;">Hover a cell to inspect</div>
+            </div>
+            <div class="heatmap-wrap" id="heatmapContainer">
+                <div class="loading-state"><div class="spinner"></div><span class="loading-text">Loading correlation data…</span></div>
+            </div>
+            <div class="heatmap-legend">
+                <span>−1 (inverse)</span>
+                <div class="heatmap-gradient"></div>
+                <span>+1 (perfect)</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+//  GLOBAL CONFIG
+// ─────────────────────────────────────────────────────────
+Chart.defaults.color = '#6b7566';
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.font.size = 11;
+
+const C = {
+    forest:'#1a3d24', leaf:'#2e7d32', lime:'#7cb342',
+    gold:'#e6a817', info:'#1a5276', error:'#c0392b',
+    success:'#1e8449', muted:'#6b7566', border:'#d4dcc8', purple:'#7b1fa2'
+};
+
+const charts = {};
+const API = '/api';
+let _state = null;       // last successful API response
+let _heatmapData = null;
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+// ─────────────────────────────────────────────────────────
+//  AUTH / INIT
+// ─────────────────────────────────────────────────────────
+async function checkAuth() {
+    const r = await fetch(`${API}/auth/me`, { credentials:'include' });
+    if (!r.ok) { window.location.href = '/login'; return null; }
+    return r.json();
+}
+
+async function loadCommodities() {
+    const r = await fetch(`${API}/commodities`, { credentials:'include' });
+    if (!r.ok) return;
+    const { commodities } = await r.json();
+    const sel = document.getElementById('ctrlCommodity');
+    sel.innerHTML = '';
+    commodities.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        sel.appendChild(o);
+    });
+}
+
+// ─────────────────────────────────────────────────────────
+//  TOAST
+// ─────────────────────────────────────────────────────────
+function toast(msg, error = false) {
+    const el = document.createElement('div');
+    el.className = 'toast-msg' + (error ? ' error' : '');
+    el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+// ─────────────────────────────────────────────────────────
+//  HEATMAP — fetch prices from backend, compute Pearson
+// ─────────────────────────────────────────────────────────
+function pearson(a, b) {
+    const n = Math.min(a.length, b.length);
+    if (n < 3) return 0;
+    const ax = a.slice(0,n), bx = b.slice(0,n);
+    const ma = ax.reduce((s,v)=>s+v,0)/n, mb = bx.reduce((s,v)=>s+v,0)/n;
+    let num=0,sa=0,sb=0;
+    for (let i=0;i<n;i++){const da=ax[i]-ma,db=bx[i]-mb;num+=da*db;sa+=da*da;sb+=db*db;}
+    const d=Math.sqrt(sa*sb); return d===0?0:+(num/d).toFixed(4);
+}
+
+async function buildHeatmap() {
+    // Fetch all commodities, then each price series
+    const r0 = await fetch(`${API}/commodities`, { credentials:'include' });
+    if (!r0.ok) return null;
+    const { commodities } = await r0.json();
+    const prices = {};
+    await Promise.all(commodities.map(async c => {
+        try {
+            const r = await fetch(`${API}/prices/${c}`, { credentials:'include' });
+            if (r.ok) { const j = await r.json(); prices[c] = j.data.map(d=>d.price); }
+        } catch(e) { /* skip */ }
+    }));
+    const labels = Object.keys(prices);
+    const n = labels.length;
+    const matrix = Array(n).fill(null).map(()=>Array(n).fill(0));
+    const vols = [];
+    for (let i=0;i<n;i++) {
+        const s = prices[labels[i]];
+        const mean = s.reduce((a,b)=>a+b,0)/s.length;
+        const std = Math.sqrt(s.reduce((a,b)=>a+(b-mean)**2,0)/s.length);
+        vols.push(std/mean);
+        for (let j=0;j<n;j++) {
+            if (i===j) matrix[i][j]=1;
+            else if (j>i) { const r=pearson(prices[labels[i]],prices[labels[j]]); matrix[i][j]=r; matrix[j][i]=r; }
+        }
+    }
+    return { labels, matrix, vols };
+}
+
+function heatmapColor(r) {
+    const t = (r+1)/2;
+    if (t<0.5) { const f=t/0.5; return `rgba(192,57,43,${1-f*0.7})`; }
+    else { const f=(t-0.5)/0.5; return `rgba(30,132,73,${0.25+f*0.75})`; }
+}
+
+function renderHeatmap(data) {
+    if (!data) return;
+    _heatmapData = data;
+    const sortBy = document.getElementById('heatmapSort').value;
+    const showVals = document.getElementById('heatmapShowVals').checked;
+    const { labels, matrix, vols } = data;
+    let idx = labels.map((_,i)=>i);
+    if (sortBy==='avg_corr') {
+        const avg = idx.map(i=>{ let s=0,c=0; matrix[i].forEach((v,j)=>{ if(i!==j){s+=Math.abs(v);c++;} }); return s/c; });
+        idx.sort((a,b)=>avg[b]-avg[a]);
+    } else if (sortBy==='volatility') {
+        idx.sort((a,b)=>vols[b]-vols[a]);
+    }
+    const sl = idx.map(i=>labels[i]);
+    const sm = idx.map(i=>idx.map(j=>matrix[i][j]));
+    let html = `<table class="heatmap-table"><thead><tr><th class="rh">Commodity</th>`;
+    sl.forEach(l=>{ html+=`<th>${l}</th>`; });
+    html+=`</tr></thead><tbody>`;
+    for (let i=0;i<sl.length;i++) {
+        html+=`<tr><th class="rh">${sl[i]}</th>`;
+        for (let j=0;j<sl.length;j++) {
+            const v=sm[i][j]; const bg=heatmapColor(v);
+            html+=`<td class="heatmap-cell" style="background:${bg};${i===j?'opacity:.55;':''}"
+                data-r="${v}" data-a="${sl[i]}" data-b="${sl[j]}"
+                onmouseenter="highlightCell(this)" onmouseleave="clearHighlight()">${showVals?v.toFixed(2):''}</td>`;
+        }
+        html+=`</tr>`;
+    }
+    html+=`</tbody></table>`;
+    document.getElementById('heatmapContainer').innerHTML=html;
+    // avg off-diagonal
+    let off=[]; for(let i=0;i<sm.length;i++) for(let j=0;j<sm.length;j++) if(i!==j) off.push(sm[i][j]);
+    const avg=(off.reduce((s,v)=>s+v,0)/off.length).toFixed(3);
+    document.getElementById('heatmapBadge').textContent=`avg r = ${avg}`;
+}
+window.highlightCell=cell=>{ const r=parseFloat(cell.dataset.r),a=cell.dataset.a,b=cell.dataset.b; const s=Math.abs(r)>=.8?'very strong':Math.abs(r)>=.6?'strong':Math.abs(r)>=.4?'moderate':Math.abs(r)>=.2?'weak':'negligible'; document.getElementById('heatmapHighlight').textContent=a===b?a:`${a} × ${b}: r = ${r.toFixed(3)} (${s})`; };
+window.clearHighlight=()=>{ document.getElementById('heatmapHighlight').textContent='Hover a cell to inspect'; };
+document.getElementById('heatmapSort')?.addEventListener('change',()=>_heatmapData&&renderHeatmap(_heatmapData));
+document.getElementById('heatmapShowVals')?.addEventListener('change',()=>_heatmapData&&renderHeatmap(_heatmapData));
+
+// ─────────────────────────────────────────────────────────
+//  STL DECOMPOSITION (client-side additive)
+// ─────────────────────────────────────────────────────────
+function stlDecompose(prices, period=7) {
+    const n=prices.length, trend=[], seasonal=new Array(n).fill(0), residual=[];
+    const hw=Math.floor(period/2);
+    for (let i=0;i<n;i++) { let s=0,c=0; for(let j=Math.max(0,i-hw);j<=Math.min(n-1,i+hw);j++){s+=prices[j];c++;} trend.push(s/c); }
+    const det=prices.map((p,i)=>p-trend[i]);
+    const sa=new Array(period).fill(0), sc=new Array(period).fill(0);
+    for (let i=0;i<n;i++){sa[i%period]+=det[i];sc[i%period]++;}
+    for (let i=0;i<period;i++) sa[i]/=(sc[i]||1);
+    const smean=sa.reduce((a,b)=>a+b,0)/period;
+    for (let i=0;i<period;i++) sa[i]-=smean;
+    for (let i=0;i<n;i++) seasonal[i]=sa[i%period];
+    for (let i=0;i<n;i++) residual.push(prices[i]-trend[i]-seasonal[i]);
+    return {trend,seasonal,residual};
+}
+
+// ─────────────────────────────────────────────────────────
+//  ROC CURVE from test predictions
+// ─────────────────────────────────────────────────────────
+function computeROC(actuals, preds) {
+    const pts = [];
+    for (let i=1;i<actuals.length;i++) {
+        pts.push({ actual: actuals[i]>actuals[i-1]?1:0, score: preds[i]-preds[i-1] });
+    }
+    pts.sort((a,b)=>b.score-a.score);
+    const posTotal=pts.filter(p=>p.actual===1).length;
+    const negTotal=pts.length-posTotal;
+    if (!posTotal||!negTotal) return [{fpr:0,tpr:0},{fpr:1,tpr:1}];
+    const curve=[{fpr:0,tpr:0}];
+    let tp=0,fp=0;
+    const step=Math.max(1,Math.floor(pts.length/15));
+    pts.forEach((p,i)=>{ if(p.actual===1)tp++;else fp++; if(i%step===0||i===pts.length-1) curve.push({fpr:fp/negTotal,tpr:tp/posTotal}); });
+    curve.push({fpr:1,tpr:1});
+    return curve;
+}
+
+function aucFromROC(curve) {
+    let auc=0;
+    for (let i=1;i<curve.length;i++) auc+=(curve[i].fpr-curve[i-1].fpr)*((curve[i].tpr+curve[i-1].tpr)/2);
+    return Math.max(0,Math.min(1,auc));
+}
+
+// ─────────────────────────────────────────────────────────
+//  R² DISPLAY
+// ─────────────────────────────────────────────────────────
+function r2Display(v) {
+    if (v===null||v===undefined||typeof v!=='number') return {text:'N/A',cls:'r2-na',tip:'R² not computed.'};
+    v=Math.max(-1,Math.min(1,v));
+    if (v>=.9)  return {text:v.toFixed(3)+' ✓✓',cls:'r2-excellent',tip:'Excellent: explains ≥90% of variance.'};
+    if (v>=.7)  return {text:v.toFixed(3)+' ✓', cls:'r2-good',     tip:'Good: explains 70–90% of variance.'};
+    if (v>=.5)  return {text:v.toFixed(3)+' ~', cls:'r2-ok',       tip:'Moderate: explains 50–70% of variance.'};
+    if (v>=.3)  return {text:v.toFixed(3)+' ↓', cls:'r2-weak',     tip:'Weak: explains 30–50% of variance.'};
+    if (v>=0)   return {text:v.toFixed(3)+' ↓↓',cls:'r2-bad',      tip:'Very weak: explains <30% of variance.'};
+    return {text:v.toFixed(3)+' ✗',cls:'r2-bad',tip:'Negative R²: worse than predicting the mean.'};
+}
+
+// ─────────────────────────────────────────────────────────
+//  MAIN API CALL
+// ─────────────────────────────────────────────────────────
+async function fetchData(commodity, forecast_days) {
+    // 1. compare_models — gives ARIMA + LSTM + ensemble forecasts & metrics
+    const r1 = await fetch(`${API}/compare_models`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body: JSON.stringify({commodity, forecast_days})
+    });
+    if (r1.status===401) { window.location.href='/login'; throw new Error('Auth'); }
+    if (!r1.ok) { const e=await r1.json(); throw new Error(e.error||'API error'); }
+    const raw = await r1.json();
+
+    // 2. statistics — gives current_price, mean, min, max, std, trend, volatility, pct_changes
+    const r2 = await fetch(`${API}/statistics/${commodity}`, { credentials:'include' });
+    const stats = r2.ok ? await r2.json() : null;
+
+    // ── Unpack backend response ──────────────────────────
+    const histPrices = raw.historical.map(d=>d.price);
+    const histDates  = raw.historical.map(d=>d.date);
+    const forecastDates = raw.dates;
+
+    const am = raw.arima?.metrics || null;
+    const lm = raw.lstm?.metrics  || null;
+
+    const arimaPreds = raw.arima?.predictions || [];
+    const lstmPreds  = raw.lstm?.predictions  || [];
+    const ensemblePreds = raw.ensemble?.predictions || [];
+
+    // ── Determine primary model's metrics ───────────────
+    const selectedModel = document.getElementById('ctrlModel').value;
+    const primaryM = selectedModel==='lstm' && lm ? lm : am;
+    const primaryPreds = selectedModel==='lstm' && lstmPreds.length ? lstmPreds : arimaPreds;
+
+    // ── Derive residuals from backend test data ──────────
+    let residuals = [], confMatrix = {tp:0,fp:0,tn:0,fn:0};
+    let rocCurve = [{fpr:0,tpr:0},{fpr:1,tpr:1}];
+    let residualStd = 0;
+
+    if (primaryM?.test_predictions && primaryM?.test_actuals) {
+        const tp = primaryM.test_predictions;
+        const ta = primaryM.test_actuals;
+        residuals = ta.map((a,i)=>a-tp[i]);
+        residualStd = Math.sqrt(residuals.reduce((s,r)=>s+r*r,0)/residuals.length);
+        // Directional confusion from consecutive test steps
+        for (let i=1;i<ta.length;i++) {
+            const aUp=ta[i]>ta[i-1], pUp=tp[i]>tp[i-1];
+            if (aUp&&pUp) confMatrix.tp++;
+            else if (!aUp&&!pUp) confMatrix.tn++;
+            else if (!aUp&&pUp) confMatrix.fp++;
+            else if (aUp&&!pUp) confMatrix.fn++;
+        }
+        rocCurve = computeROC(ta, tp);
+    }
+
+    // ── Feature importance from backend ─────────────────
+    let featureRows = [];
+    const fi = primaryM?.feature_importance;
+    if (fi && Object.keys(fi).length>0) {
+        const entries = Object.entries(fi);
+        const total = entries.reduce((s,[,v])=>s+Math.abs(v),0)||1;
+        featureRows = entries
+            .map(([name,val])=>({ name: name.replace(/_/g,' '), score: +(Math.abs(val)/total*100).toFixed(1) }))
+            .sort((a,b)=>b.score-a.score)
+            .slice(0,8);
+    }
+
+    // ── Training history (LSTM only) ─────────────────────
+    const trainingHistory = (selectedModel==='lstm' && lm?.training_history) ? lm.training_history : null;
+
+    // ── Build unified metrics object ─────────────────────
+    function buildMetrics(m) {
+        if (!m) return null;
+        return {
+            rmse:     m.rmse     ?? 0,
+            mae:      m.mae      ?? 0,
+            mape:     m.mape     ?? 0,
+            accuracy: m.accuracy ?? 0,
+            r2:       m.r2       ?? null,
+            arima_order: m.arima_order ?? null,
         };
+    }
 
-        const charts = {};
-        function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+    return {
+        commodity, forecast_days,
+        histPrices, histDates, forecastDates,
+        arimaPreds, lstmPreds, ensemblePreds,
+        primaryPreds, primaryM: buildMetrics(primaryM),
+        arimaM: buildMetrics(am), lstmM: buildMetrics(lm),
+        residuals, residualStd, confMatrix, rocCurve,
+        featureRows, trainingHistory,
+        stats,
+        decomp: stlDecompose(histPrices, 7),
+        selectedModel
+    };
+}
 
-        // ── Auth + commodity loader ───────────────────────────────────────────────
-        const API_BASE = '/api';
+// ─────────────────────────────────────────────────────────
+//  RUN
+// ─────────────────────────────────────────────────────────
+async function runAnalysis() {
+    const commodity = document.getElementById('ctrlCommodity').value;
+    const days = Math.min(90, Math.max(7, parseInt(document.getElementById('ctrlDays').value)||30));
+    const btn = document.getElementById('btnRun');
+    btn.disabled=true;
+    btn.innerHTML='<div class="spinner" style="width:14px;height:14px;margin-right:6px;border-width:2px"></div>Running…';
+    try {
+        const [d, hm] = await Promise.all([
+            fetchData(commodity, days),
+            buildHeatmap()
+        ]);
+        _state = d;
+        renderAll(d);
+        if (hm) renderHeatmap(hm);
+        document.getElementById('statusBadge').style.display='inline-block';
+        toast(`Analysis complete for ${commodity}`);
+    } catch(e) {
+        toast('Error: '+e.message, true);
+        console.error(e);
+    }
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-play"></i>Run Analysis';
+}
 
-        async function checkAuth() {
-            try {
-                const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
-                if (!res.ok) { window.location.href = '/login'; return null; }
-                return await res.json();
-            } catch (e) { window.location.href = '/login'; return null; }
+// Re-render when model selector changes (no extra API call needed)
+document.getElementById('ctrlModel')?.addEventListener('change', async () => {
+    if (!_state) return;
+    const commodity = _state.commodity, days = _state.forecast_days;
+    // Re-fetch so primary metrics use correct model
+    try {
+        _state = await fetchData(commodity, days);
+        renderAll(_state);
+    } catch(e) { toast('Error: '+e.message, true); }
+});
+
+// ─────────────────────────────────────────────────────────
+//  RENDER ALL
+// ─────────────────────────────────────────────────────────
+function renderAll(d) {
+    renderOverview(d);
+    renderStatsStrip(d.stats);
+    renderMetricTiles(d);
+    renderModelExplanation(d);
+    renderComparison(d);
+    renderMetricBar(d);
+    renderConfidenceBands(d);
+    renderConfusionMatrix(d.confMatrix, d.residuals.length);
+    renderResidualHist(d.residuals, d.residualStd);
+    renderResidualTime(d.residuals);
+    renderFeatureImportance(d.featureRows, d.selectedModel, d.primaryM?.arima_order);
+    renderROC(d.rocCurve);
+    renderScatter(d.primaryM, d.selectedModel);
+    renderTrainingLoss(d.trainingHistory, d.selectedModel);
+    renderDecomp(d);
+}
+
+function renderOverview(d) {
+    const am=d.arimaM, lm=d.lstmM;
+    const aAcc=(am?.accuracy??0).toFixed(1), lAcc=(lm?.accuracy??0).toFixed(1);
+    const winner = parseFloat(aAcc)>=parseFloat(lAcc)
+        ? `ARIMA leads (${aAcc}%)`
+        : `LSTM leads (${lAcc}%)`;
+    document.getElementById('overviewSubtitle').textContent =
+        `${d.commodity} · ${d.histPrices.length} historical pts · ${d.forecast_days}-day forecast · walk-forward validated`;
+    document.getElementById('modelBadge').textContent =
+        `ARIMA ${aAcc}% · LSTM ${lAcc}% · ${winner}`;
+}
+
+function renderStatsStrip(stats) {
+    if (!stats) { document.getElementById('statsStrip').innerHTML=''; return; }
+    const p7 = stats.pct_change_7d, p30 = stats.pct_change_30d;
+    document.getElementById('statsStrip').innerHTML = `
+        <div class="stat-chip"><div class="sv">₦${stats.current_price.toFixed(2)}</div><div class="sl">Current Price</div></div>
+        <div class="stat-chip"><div class="sv">₦${stats.average.toFixed(2)}</div><div class="sl">Mean</div></div>
+        <div class="stat-chip"><div class="sv">₦${stats.median.toFixed(2)}</div><div class="sl">Median</div></div>
+        <div class="stat-chip"><div class="sv">₦${stats.min.toFixed(2)}</div><div class="sl">Min</div></div>
+        <div class="stat-chip"><div class="sv">₦${stats.max.toFixed(2)}</div><div class="sl">Max</div></div>
+        <div class="stat-chip"><div class="sv">₦${stats.std_dev.toFixed(2)}</div><div class="sl">Std Dev</div></div>
+        <div class="stat-chip ${p7>=0?'up':'down'}"><div class="sv">${p7>=0?'+':''}${p7.toFixed(1)}%</div><div class="sl">7d Change</div></div>
+        <div class="stat-chip ${p30>=0?'up':'down'}"><div class="sv">${p30>=0?'+':''}${p30.toFixed(1)}%</div><div class="sl">30d Change</div></div>
+        <div class="stat-chip"><div class="sv">${stats.volatility.toFixed(1)}%</div><div class="sl">Volatility</div></div>
+        <div class="stat-chip ${stats.trend==='upward'?'up':'down'}"><div class="sv">${stats.trend==='upward'?'↑ Up':'↓ Down'}</div><div class="sl">Trend</div></div>
+    `;
+}
+
+function renderMetricTiles(d) {
+    const m = d.primaryM;
+    if (!m) { document.getElementById('metricTiles').innerHTML='<div class="empty-state"><i class="fas fa-exclamation-circle"></i>No metrics available</div>'; return; }
+    const r2d = r2Display(m.r2);
+    const label = d.selectedModel==='lstm' && d.lstmM ? 'LSTM' : 'ARIMA';
+    document.getElementById('metricTiles').innerHTML = `
+        <div class="metric-tile" title="% of directional price movements correctly predicted">
+            <div class="info-icon">i</div>
+            <div class="val">${m.accuracy.toFixed(1)}%</div>
+            <div class="lbl">Dir. Accuracy (${label})</div>
+        </div>
+        <div class="metric-tile accent-blue" title="Root Mean Squared Error on held-out test set">
+            <div class="info-icon">i</div>
+            <div class="val">₦${m.rmse.toFixed(2)}</div>
+            <div class="lbl">RMSE</div>
+        </div>
+        <div class="metric-tile accent-orange" title="Mean Absolute Error on held-out test set">
+            <div class="info-icon">i</div>
+            <div class="val">₦${m.mae.toFixed(2)}</div>
+            <div class="lbl">MAE</div>
+        </div>
+        <div class="metric-tile accent-purple" title="Mean Absolute Percentage Error — average % deviation">
+            <div class="info-icon">i</div>
+            <div class="val">${m.mape.toFixed(2)}%</div>
+            <div class="lbl">MAPE</div>
+        </div>
+        <div class="metric-tile" title="${r2d.tip}">
+            <div class="info-icon">i</div>
+            <div class="val ${r2d.cls}">${r2d.text}</div>
+            <div class="lbl">R² Score</div>
+        </div>
+    `;
+}
+
+function renderModelExplanation(d) {
+    const m = d.primaryM;
+    const box = document.getElementById('modelExplanation');
+    if (!m) { box.style.display='none'; return; }
+    const label = d.selectedModel==='lstm' && d.lstmM ? 'LSTM' : 'ARIMA';
+    const r2v = m.r2;
+    let r2txt = r2v===null ? 'R² unavailable'
+        : r2v>=.9 ? 'explains over 90% of price variance — excellent'
+        : r2v>=.7 ? 'explains 70–90% of price variance — good fit'
+        : r2v>=.5 ? 'explains 50–70% of price variance — moderate fit'
+        : r2v>=.3 ? 'explains 30–50% of price variance — weak fit'
+        : r2v>=0  ? 'explains less than 30% of variance — very weak'
+        : 'performs worse than a simple mean — poor fit';
+    const mapeQ = m.mape<5?'highly accurate':m.mape<10?'accurate':m.mape<20?'moderately accurate':'less accurate';
+    const orderTag = label==='ARIMA' && m.arima_order
+        ? `<span class="arima-order-tag">order (${m.arima_order.join(',')})</span>` : '';
+    box.style.display='block';
+    box.innerHTML = `<strong>${label}</strong>${orderTag} ${r2txt}.
+        Predictions are off by an average of <span class="mv">₦${m.mae.toFixed(2)}</span> (MAE) 
+        and <span class="mv">${m.mape.toFixed(2)}%</span> (MAPE) — ${mapeQ}.
+        RMSE of <span class="mv">₦${m.rmse.toFixed(2)}</span> reflects outlier sensitivity.
+        Directional accuracy <span class="mv">${m.accuracy.toFixed(1)}%</span>
+        — model predicts price direction ${m.accuracy>60?'reliably':m.accuracy>50?'slightly above chance':'at or below random chance'}.
+        All figures from walk-forward validation on the held-out 20% test split.`;
+}
+
+// ─────────────────────────────────────────────────────────
+//  CHART RENDERS
+// ─────────────────────────────────────────────────────────
+function baseOpts(yPrefix='₦') {
+    return {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{ legend:{display:true,position:'top',labels:{boxWidth:10,padding:12}},
+                  tooltip:{callbacks:{label:c=>c.dataset.label+': '+yPrefix+c.parsed.y.toFixed(2)}} },
+        scales:{ y:{grid:{color:C.border},ticks:{callback:v=>yPrefix+v.toFixed(0)}},
+                 x:{grid:{display:false},ticks:{maxTicksLimit:8}} }
+    };
+}
+
+function renderComparison(d) {
+    destroyChart('comparison');
+    const nHist = d.histPrices.length;
+    const nFore = d.forecastDates.length;
+    const nullH = new Array(nHist).fill(null);
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    const allDates = [...d.histDates, ...d.forecastDates];
+    const datasets = [
+        { label:'Actual', data:[...d.histPrices,...new Array(nFore).fill(null)], borderColor:C.muted, backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:.3 },
+    ];
+    if (d.arimaPreds.length) datasets.push({ label:'ARIMA', data:[...nullH,...d.arimaPreds], borderColor:C.info, backgroundColor:'rgba(26,82,118,.07)', borderWidth:2, pointRadius:0, tension:.4, borderDash:[5,3] });
+    if (d.lstmPreds.length)  datasets.push({ label:'LSTM',  data:[...nullH,...d.lstmPreds],  borderColor:C.gold, backgroundColor:'rgba(230,168,23,.07)', borderWidth:2, pointRadius:0, tension:.4, borderDash:[8,4] });
+    if (d.ensemblePreds.length) datasets.push({ label:'Ensemble', data:[...nullH,...d.ensemblePreds], borderColor:C.leaf, backgroundColor:'rgba(46,125,50,.07)', borderWidth:2.5, pointRadius:0, tension:.4 });
+    charts.comparison = new Chart(ctx, { type:'line', data:{ labels:allDates, datasets }, options: baseOpts() });
+}
+
+function renderMetricBar(d) {
+    destroyChart('metricBar');
+    const am=d.arimaM, lm=d.lstmM;
+    const ctx=document.getElementById('metricBarChart').getContext('2d');
+    const labels=['Dir. Acc %','RMSE ₦','MAE ₦','MAPE %'];
+    const aData=[am?.accuracy??0, am?.rmse??0, am?.mae??0, am?.mape??0];
+    const lData=[lm?.accuracy??0, lm?.rmse??0, lm?.mae??0, lm?.mape??0];
+    charts.metricBar = new Chart(ctx, {
+        type:'bar',
+        data:{ labels, datasets:[
+            {label:'ARIMA',data:aData,backgroundColor:'rgba(26,82,118,.65)',borderColor:C.info,borderWidth:1,borderRadius:4},
+            {label:'LSTM', data:lData,backgroundColor:'rgba(230,168,23,.65)',borderColor:C.gold,borderWidth:1,borderRadius:4},
+        ]},
+        options:{ indexAxis:'y',responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},
+                     tooltip:{callbacks:{label:c=>c.parsed.x===null?'N/A':`${c.dataset.label}: ${c.parsed.x.toFixed(2)}`}}},
+            scales:{x:{beginAtZero:true,grid:{color:C.border}},y:{grid:{display:false}}} }
+    });
+}
+
+function renderConfidenceBands(d) {
+    destroyChart('confidence');
+    const fore = d.primaryPreds;
+    if (!fore||!fore.length) return;
+    const sigma = d.residualStd || (d.primaryM?.rmse||10);
+    document.getElementById('ciSubtitle').textContent =
+        `σ = ₦${sigma.toFixed(2)} from test residuals · 80% (±1.28σ) · 95% (±1.96σ)`;
+    const ctx=document.getElementById('confidenceChart').getContext('2d');
+    charts.confidence = new Chart(ctx, {
+        type:'line',
+        data:{ labels:d.forecastDates, datasets:[
+            {label:'95% Upper',data:fore.map(v=>v+1.96*sigma),borderColor:'transparent',backgroundColor:'rgba(46,125,50,.10)',fill:'+1',pointRadius:0},
+            {label:'80% Upper',data:fore.map(v=>v+1.28*sigma),borderColor:'transparent',backgroundColor:'rgba(46,125,50,.22)',fill:'+1',pointRadius:0},
+            {label:'Forecast', data:fore,borderColor:C.leaf,backgroundColor:'transparent',borderWidth:2.5,pointRadius:0,tension:.4},
+            {label:'80% Lower',data:fore.map(v=>v-1.28*sigma),borderColor:'transparent',backgroundColor:'rgba(46,125,50,.22)',fill:'-1',pointRadius:0},
+            {label:'95% Lower',data:fore.map(v=>v-1.96*sigma),borderColor:'transparent',backgroundColor:'rgba(46,125,50,.10)',fill:'-1',pointRadius:0},
+        ]},
+        options:{ responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.datasetIndex===2?'₦'+c.parsed.y.toFixed(2):''}}},
+            scales:{y:{grid:{color:C.border},ticks:{callback:v=>'₦'+v.toFixed(0)}},x:{display:false}} }
+    });
+}
+
+function renderConfusionMatrix(c, nResiduals) {
+    const {tp,fp,tn,fn}=c, n=tp+fp+tn+fn;
+    const pct=v=>n>0?((v/n)*100).toFixed(1)+'%':'—';
+    const prec=tp/(tp+fp)||0, rec=tp/(tp+fn)||0;
+    const f1=2*prec*rec/(prec+rec)||0, acc=n>0?(tp+tn)/n:0;
+    document.getElementById('confMatrix').innerHTML=`
+        <div class="conf-cell hdr"></div>
+        <div class="conf-cell hdr">Pred ↑</div>
+        <div class="conf-cell hdr">Pred ↓</div>
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);font-size:.68rem;color:var(--muted);padding:0 4px;display:flex;align-items:center;justify-content:center;font-weight:600;">Actual ↑</div>
+        <div class="conf-cell tp"><span>${tp}</span><span class="conf-pct">${pct(tp)}</span></div>
+        <div class="conf-cell fn"><span>${fn}</span><span class="conf-pct">${pct(fn)}</span></div>
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);font-size:.68rem;color:var(--muted);padding:0 4px;display:flex;align-items:center;justify-content:center;font-weight:600;">Actual ↓</div>
+        <div class="conf-cell fp"><span>${fp}</span><span class="conf-pct">${pct(fp)}</span></div>
+        <div class="conf-cell tn"><span>${tn}</span><span class="conf-pct">${pct(tn)}</span></div>`;
+    document.getElementById('confMetrics').innerHTML=[
+        {l:'Precision',v:(prec*100).toFixed(1)+'%',c:''},
+        {l:'Recall',   v:(rec*100).toFixed(1)+'%', c:'blue'},
+        {l:'F1 Score', v:(f1*100).toFixed(1)+'%',  c:'orange'},
+        {l:'Dir. Acc.',v:(acc*100).toFixed(1)+'%', c:'purple'},
+    ].map(m=>`<div class="metric-tile${m.c?' accent-'+m.c:''}" style="flex:1;min-width:70px;padding:.6rem .5rem"><div class="val" style="font-size:1rem">${m.v}</div><div class="lbl">${m.l}</div></div>`).join('');
+    document.getElementById('confNote').textContent =
+        n>0 ? `Based on ${n} consecutive directional comparisons in the 20% test set` : 'No test data available';
+}
+
+function renderResidualHist(residuals, sigma) {
+    destroyChart('residual');
+    document.getElementById('residualStdBadge').textContent = sigma ? `σ = ₦${sigma.toFixed(2)}` : 'σ = —';
+    if (!residuals.length) return;
+    const mn=Math.min(...residuals), mx=Math.max(...residuals);
+    const bins=14, bw=(mx-mn)/bins;
+    const counts=new Array(bins).fill(0);
+    residuals.forEach(r=>{ const b=Math.min(bins-1,Math.floor((r-mn)/bw)); counts[b]++; });
+    const labels=counts.map((_,i)=>(mn+i*bw).toFixed(1));
+    const ctx=document.getElementById('residualChart').getContext('2d');
+    charts.residual=new Chart(ctx,{
+        type:'bar',
+        data:{labels,datasets:[{label:'Frequency',data:counts,backgroundColor:'rgba(30,132,73,.5)',borderColor:C.success,borderWidth:1,borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Count: ${c.parsed.y}`}}},
+            scales:{y:{grid:{color:C.border},title:{display:true,text:'Frequency'}},
+                    x:{grid:{display:false},ticks:{maxTicksLimit:7},title:{display:true,text:'Residual (₦)'}}} }
+    });
+}
+
+function renderResidualTime(residuals) {
+    destroyChart('residualTime');
+    if (!residuals.length) return;
+    const ctx=document.getElementById('residualTimeChart').getContext('2d');
+    charts.residualTime=new Chart(ctx,{
+        type:'bar',
+        data:{labels:residuals.map((_,i)=>`T${i+1}`),datasets:[{
+            label:'Residual (₦)',data:residuals,
+            backgroundColor:residuals.map(r=>r>0?'rgba(30,132,73,.6)':'rgba(192,57,43,.6)'),
+            borderColor:residuals.map(r=>r>0?C.success:C.error),borderWidth:.5
+        }]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:false}},
+            scales:{y:{grid:{color:C.border},ticks:{callback:v=>'₦'+v.toFixed(0)},
+                       title:{display:true,text:'Actual − Predicted (₦)'}},
+                    x:{display:false}} }
+    });
+}
+
+const FEAT_COLORS=[C.forest,C.leaf,C.lime,C.gold,C.info,C.error,C.purple,C.muted];
+function renderFeatureImportance(features, model, arimaOrder) {
+    const sub = model==='arima' && arimaOrder
+        ? `ARIMA(${arimaOrder.join(',')}) AR/MA coefficients — AIC-selected`
+        : model==='lstm' ? 'Pearson correlation of each feature with price target'
+        : 'Feature contributions';
+    document.getElementById('featSubtitle').textContent = sub;
+    if (!features||!features.length) {
+        document.getElementById('featureImportance').innerHTML=`<div class="empty-state"><i class="fas fa-info-circle"></i>No feature data returned</div>`;
+        return;
+    }
+    document.getElementById('featureImportance').innerHTML=features.map((f,i)=>`
+        <div class="prog-item">
+            <div class="prog-label"><span class="prog-name">${f.name}</span><span class="prog-val">${f.score}%</span></div>
+            <div class="prog-track"><div class="prog-fill" style="width:${f.score}%;background:${FEAT_COLORS[i%FEAT_COLORS.length]}"></div></div>
+        </div>`).join('');
+}
+
+function renderROC(rocCurve) {
+    destroyChart('roc');
+    const auc = aucFromROC(rocCurve);
+    document.getElementById('aucBadge').textContent = `AUC = ${auc.toFixed(3)}`;
+    const ctx=document.getElementById('rocChart').getContext('2d');
+    charts.roc=new Chart(ctx,{
+        type:'line',
+        data:{
+            labels:rocCurve.map(p=>(p.fpr*100).toFixed(0)+'%'),
+            datasets:[
+                {label:`ROC (AUC=${auc.toFixed(3)})`,data:rocCurve.map(p=>p.tpr),
+                 borderColor:C.info,backgroundColor:'rgba(26,82,118,.12)',borderWidth:2,fill:true,tension:.15,pointRadius:1},
+                {label:'Random (AUC=0.5)',data:rocCurve.map(p=>p.fpr),
+                 borderColor:'rgba(107,117,102,.4)',borderWidth:1.5,borderDash:[5,5],pointRadius:0,tension:0}
+            ]
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10}},
+                     tooltip:{callbacks:{label:c=>c.datasetIndex===0?`TPR: ${(c.parsed.y*100).toFixed(1)}% at FPR ${c.label}`:c.dataset.label}}},
+            scales:{
+                y:{min:0,max:1,grid:{color:C.border},ticks:{callback:v=>(v*100).toFixed(0)+'%'},title:{display:true,text:'True Positive Rate'}},
+                x:{ticks:{maxTicksLimit:6},grid:{display:false},title:{display:true,text:'False Positive Rate'}}
+            }}
+    });
+}
+
+function renderScatter(primaryM, selectedModel) {
+    destroyChart('scatter');
+    if (!primaryM?.test_predictions || !primaryM?.test_actuals) {
+        // primaryM here is buildMetrics() output — no test arrays, need raw
+        // The scatter requires raw arrays — we store them separately
+    }
+    // We pass raw from _state
+    const m = selectedModel==='lstm' ? _rawLSTMMetrics : _rawARIMAMetrics;
+    if (!m?.test_predictions||!m?.test_actuals) return;
+    const ta=m.test_actuals, tp=m.test_predictions;
+    const minV=Math.min(...ta,...tp), maxV=Math.max(...ta,...tp);
+    const ctx=document.getElementById('scatterChart').getContext('2d');
+    charts.scatter=new Chart(ctx,{
+        type:'scatter',
+        data:{datasets:[
+            {label:'Test points',data:ta.map((a,i)=>({x:a,y:tp[i]})),
+             backgroundColor:'rgba(46,125,50,.45)',borderColor:C.leaf,borderWidth:1,pointRadius:4},
+            {label:'Perfect',   data:[{x:minV,y:minV},{x:maxV,y:maxV}],
+             type:'line',borderColor:'rgba(192,57,43,.5)',borderWidth:1.5,borderDash:[5,5],pointRadius:0}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},
+                     tooltip:{callbacks:{label:c=>c.datasetIndex===0?`Act: ₦${c.parsed.x.toFixed(1)} Pred: ₦${c.parsed.y.toFixed(1)}`:''}}},
+            scales:{
+                x:{title:{display:true,text:'Actual (₦)'},grid:{color:C.border},ticks:{callback:v=>'₦'+v.toFixed(0)}},
+                y:{title:{display:true,text:'Predicted (₦)'},grid:{color:C.border},ticks:{callback:v=>'₦'+v.toFixed(0)}}
+            }}
+    });
+}
+
+function renderTrainingLoss(history, selectedModel) {
+    destroyChart('training');
+    const container=document.getElementById('trainingChartContainer');
+    if (selectedModel!=='lstm'||!history||!history.train||!history.train.length) {
+        container.innerHTML=`<div class="empty-state"><i class="fas fa-info-circle"></i>Training loss only available for LSTM. Select LSTM and re-run.</div>`;
+        return;
+    }
+    container.innerHTML='<div class="chart-wrap"><canvas id="trainingChart" height="230"></canvas></div>';
+    const ctx=document.getElementById('trainingChart').getContext('2d');
+    const epochs=history.train.map((_,i)=>i+1);
+    charts.training=new Chart(ctx,{
+        type:'line',
+        data:{labels:epochs,datasets:[
+            {label:'Train Loss',data:history.train,borderColor:C.success,backgroundColor:'rgba(30,132,73,.06)',borderWidth:2,pointRadius:0,fill:true,tension:.4},
+            {label:'Val Loss',  data:history.val,  borderColor:C.gold,   backgroundColor:'rgba(230,168,23,.06)',borderWidth:2,pointRadius:0,fill:true,tension:.4,borderDash:[4,3]},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:true,position:'top'}},
+            scales:{y:{grid:{color:C.border},title:{display:true,text:'Huber Loss'}},
+                    x:{ticks:{maxTicksLimit:10},grid:{display:false},title:{display:true,text:'Epoch'}}} }
+    });
+    document.getElementById('trainingSubtitle').textContent =
+        `${history.train.length} epochs · EarlyStopping patience=8 · ReduceLROnPlateau`;
+}
+
+function renderDecomp(d) {
+    destroyChart('decomp');
+    const ctx=document.getElementById('decompChart').getContext('2d');
+    charts.decomp=new Chart(ctx,{
+        type:'line',
+        data:{labels:d.histDates,datasets:[
+            {label:'Trend',   data:d.decomp.trend,    borderColor:C.info,  backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4},
+            {label:'Seasonal',data:d.decomp.seasonal, borderColor:C.purple,backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:.4},
+            {label:'Residual',data:d.decomp.residual, borderColor:C.gold,  backgroundColor:'transparent',borderWidth:1,pointRadius:0,tension:.2,borderDash:[3,3]},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:true,position:'top'}},
+            scales:{y:{grid:{color:C.border},ticks:{callback:v=>'₦'+v.toFixed(0)}},x:{display:false}} }
+    });
+}
+
+// ─────────────────────────────────────────────────────────
+//  RAW METRICS CACHE (for scatter — needs test arrays)
+// ─────────────────────────────────────────────────────────
+let _rawARIMAMetrics = null, _rawLSTMMetrics = null;
+
+// Intercept compare_models response to cache raw metrics before buildMetrics() strips arrays
+const _origFetch = window.fetch;
+// We just re-fetch stats in renderScatter via _state; simpler: store raw in fetchData
+// Fix: store raw in module-level vars during fetchData
+async function fetchDataPatched(commodity, forecast_days) {
+    const r1 = await fetch(`${API}/compare_models`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body:JSON.stringify({commodity, forecast_days})
+    });
+    if (r1.status===401) { window.location.href='/login'; throw new Error('Auth'); }
+    if (!r1.ok) { const e=await r1.json(); throw new Error(e.error||'API error'); }
+    const raw = await r1.json();
+
+    // Cache raw metrics (with test arrays)
+    _rawARIMAMetrics = raw.arima?.metrics || null;
+    _rawLSTMMetrics  = raw.lstm?.metrics  || null;
+
+    const r2 = await fetch(`${API}/statistics/${commodity}`, { credentials:'include' });
+    const stats = r2.ok ? await r2.json() : null;
+
+    const histPrices = raw.historical.map(d=>d.price);
+    const histDates  = raw.historical.map(d=>d.date);
+    const forecastDates = raw.dates;
+    const am = raw.arima?.metrics || null;
+    const lm = raw.lstm?.metrics  || null;
+    const arimaPreds   = raw.arima?.predictions     || [];
+    const lstmPreds    = raw.lstm?.predictions      || [];
+    const ensemblePreds= raw.ensemble?.predictions  || [];
+
+    const selectedModel = document.getElementById('ctrlModel').value;
+    const primaryMRaw  = selectedModel==='lstm' && lm ? lm : am;
+    const primaryPreds = selectedModel==='lstm' && lstmPreds.length ? lstmPreds : arimaPreds;
+
+    let residuals=[],confMatrix={tp:0,fp:0,tn:0,fn:0},rocCurve=[{fpr:0,tpr:0},{fpr:1,tpr:1}],residualStd=0;
+    if (primaryMRaw?.test_predictions && primaryMRaw?.test_actuals) {
+        const tp=primaryMRaw.test_predictions, ta=primaryMRaw.test_actuals;
+        residuals=ta.map((a,i)=>a-tp[i]);
+        residualStd=Math.sqrt(residuals.reduce((s,r)=>s+r*r,0)/residuals.length);
+        for (let i=1;i<ta.length;i++) {
+            const aUp=ta[i]>ta[i-1],pUp=tp[i]>tp[i-1];
+            if(aUp&&pUp)confMatrix.tp++;else if(!aUp&&!pUp)confMatrix.tn++;
+            else if(!aUp&&pUp)confMatrix.fp++;else if(aUp&&!pUp)confMatrix.fn++;
         }
+        rocCurve=computeROC(ta,tp);
+    }
 
-        async function loadCommoditiesIntoSelect() {
-            try {
-                const res = await fetch(`${API_BASE}/commodities`, { credentials: 'include' });
-                if (!res.ok) return;
-                const data = await res.json();
-                const sel = document.getElementById('ctrlCommodity');
-                sel.innerHTML = '';
-                data.commodities.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c; opt.textContent = c;
-                    sel.appendChild(opt);
-                });
-            } catch (e) { console.error('Failed to load commodities', e); }
-        }
+    let featureRows=[];
+    const fi=primaryMRaw?.feature_importance;
+    if (fi&&Object.keys(fi).length>0) {
+        const entries=Object.entries(fi);
+        const total=entries.reduce((s,[,v])=>s+Math.abs(v),0)||1;
+        featureRows=entries.map(([name,val])=>({name:name.replace(/_/g,' '),score:+(Math.abs(val)/total*100).toFixed(1)}))
+            .sort((a,b)=>b.score-a.score).slice(0,8);
+    }
 
-        // ── Real Flask API with client-side analytics enrichment ─────────────────
-        async function fetchFromAPI(endpoint, { commodity, model, forecast_days }) {
-            const res = await fetch(`${API_BASE}/compare_models`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ commodity, forecast_days })
-            });
-            if (res.status === 401) { window.location.href = '/login'; throw new Error('Unauthenticated'); }
-            if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'API error'); }
+    const trainingHistory=(selectedModel==='lstm'&&lm?.training_history)?lm.training_history:null;
 
-            const raw = await res.json();
-            const histPrices = raw.historical.map(d => d.price);
-            const histDates  = raw.historical.map(d => d.date);
-            const arimaPred  = raw.arima ? raw.arima.predictions : [];
-            const lstmPred   = raw.lstm  ? raw.lstm.predictions  : [];
-            const allDates   = [...histDates, ...raw.dates];
+    function buildMetrics(m) {
+        if (!m) return null;
+        return { rmse:m.rmse??0, mae:m.mae??0, mape:m.mape??0, accuracy:m.accuracy??0, r2:m.r2??null, arima_order:m.arima_order??null };
+    }
 
-            const seed = commodity.charCodeAt(0);
+    return {
+        commodity, forecast_days,
+        histPrices, histDates, forecastDates,
+        arimaPreds, lstmPreds, ensemblePreds, primaryPreds,
+        primaryM: buildMetrics(primaryMRaw),
+        arimaM:   buildMetrics(am),
+        lstmM:    buildMetrics(lm),
+        residuals, residualStd, confMatrix, rocCurve,
+        featureRows, trainingHistory, stats,
+        decomp: stlDecompose(histPrices,7),
+        selectedModel
+    };
+}
 
-            // In-sample residuals: simulate small fitted-vs-actual gaps
-            const rng0 = seededRand(seed);
-            const residuals = histPrices.map(v => v - v * (1 + (rng0() - 0.5) * 0.06));
+// Override fetchData with patched version
+async function runAnalysis() {
+    const commodity=document.getElementById('ctrlCommodity').value;
+    const days=Math.min(90,Math.max(7,parseInt(document.getElementById('ctrlDays').value)||30));
+    const btn=document.getElementById('btnRun');
+    btn.disabled=true;
+    btn.innerHTML='<div class="spinner" style="width:14px;height:14px;margin-right:6px;border-width:2px"></div>Running…';
+    try {
+        const [d,hm]=await Promise.all([fetchDataPatched(commodity,days), buildHeatmap()]);
+        _state=d;
+        renderAll(d);
+        if (hm) renderHeatmap(hm);
+        document.getElementById('statusBadge').style.display='inline-block';
+        toast(`Analysis complete for ${commodity}`);
+    } catch(e) { toast('Error: '+e.message,true); console.error(e); }
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-play"></i>Run Analysis';
+}
 
-            // Directional confusion from actual price movements
-            const { tp, fp, tn, fn } = computeConfusion(histPrices, seededRand(seed + 1));
+document.getElementById('ctrlModel')?.addEventListener('change', async()=>{
+    if (!_state) return;
+    const {commodity,forecast_days}=_state;
+    try { _state=await fetchDataPatched(commodity,forecast_days); renderAll(_state); }
+    catch(e){ toast('Error: '+e.message,true); }
+});
 
-            // ═══ CRITICAL FIX: Use R² directly from backend ═══
-            const arimaM = augmentMetrics(raw.arima?.metrics, histPrices);
-            const lstmM  = augmentMetrics(raw.lstm?.metrics,  histPrices);
-
-            // Which model is "primary" for main tile display
-            const selectedModel = document.getElementById('ctrlModel').value;
-            const primaryM = (selectedModel === 'lstm' && lstmM.rmse > 0) ? lstmM : arimaM;
-
-            return {
-                commodity, model, forecast_days,
-                dates:      allDates,
-                historical: histPrices,
-                arima:      arimaPred,
-                lstm:       lstmPred,
-                residuals,
-                metrics:        primaryM,
-                arima_metrics:  arimaM,
-                lstm_metrics:   lstmM,
-                confusion:      { tp, fp, tn, fn },
-                roc:            generateROC(seededRand(seed + 2)),
-                training_loss:  generateTrainingLoss(seededRand(seed + 3)),
-                decomp:         generateDecomp(histPrices, seededRand(seed + 4)),
-                features:       generateFeatures(seededRand(seed + 5)),
-            };
-        }
-
-        /**
-         * ═══ FIXED FUNCTION: Now reads R² from backend ═══
-         * Takes backend { rmse, mae, accuracy, r2 } and adds only MAPE.
-         * No longer calculates R² from variance (which was causing negative values).
-         */
-        function augmentMetrics(base, actuals) {
-            if (!base) return { 
-                accuracy: 0, 
-                rmse: 0, 
-                mae: 0, 
-                mape: 0, 
-                r2: 'N/A', 
-                r2_num: null 
-            };
-
-            const mean = actuals.reduce((a, b) => a + b, 0) / actuals.length;
-            const mape = +(base.mae / mean * 100).toFixed(2);
-
-            // ═══ USE R² FROM BACKEND (not calculated) ═══
-            let r2_num = null, r2 = 'N/A';
-            if (base.r2 !== undefined && base.r2 !== null && typeof base.r2 === 'number') {
-                r2_num = parseFloat(base.r2);
-                // Clamp to [-1, 1] for display sanity
-                r2_num = Math.max(-1, Math.min(1, r2_num));
-                r2 = r2_num.toFixed(3);
-            }
-
-            return { 
-                accuracy: base.accuracy,
-                rmse: base.rmse,
-                mae: base.mae,
-                mape, 
-                r2, 
-                r2_num 
-            };
-        }
-
-        // ── Seeded helpers ────────────────────────────────────────────────────────
-        function seededRand(seed) {
-            let s = seed * 9301 + 49297;
-            return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-        }
-
-        function computeConfusion(hist, rng) {
-            let tp = 0, fp = 0, tn = 0, fn = 0;
-            for (let i = 1; i < hist.length; i++) {
-                const actual = hist[i] > hist[i - 1];
-                const predicted = rng() > 0.25 ? actual : !actual;
-                if (actual && predicted) tp++;
-                else if (!actual && !predicted) tn++;
-                else if (!actual && predicted) fp++;
-                else fn++;
-            }
-            return { tp, fp, tn, fn };
-        }
-
-        function generateROC(rng) {
-            const pts = [{ fpr: 0, tpr: 0 }];
-            let fpr = 0, tpr = 0;
-            for (let i = 0; i < 20; i++) {
-                fpr += rng() * 0.06; tpr += 0.04 + rng() * 0.05;
-                pts.push({ fpr: Math.min(1, fpr), tpr: Math.min(1, tpr) });
-            }
-            pts.push({ fpr: 1, tpr: 1 });
-            return pts;
-        }
-
-        function generateTrainingLoss(rng) {
-            const train = [], val = [];
-            let tl = 0.5 + rng() * 0.3;
-            for (let i = 0; i < 50; i++) {
-                tl *= (0.92 + rng() * 0.04);
-                const vl = tl + 0.01 + rng() * 0.03;
-                train.push(+tl.toFixed(4)); val.push(+vl.toFixed(4));
-            }
-            return { train, val };
-        }
-
-        function generateDecomp(hist, rng) {
-            const trend    = hist.map((v, i) => v + Math.sin(i / 8) * v * 0.02);
-            const seasonal = hist.map((_, i) => Math.sin(i * 2 * Math.PI / 30) * 15);
-            const residual = hist.map((v, i) => v - trend[i] - seasonal[i]);
-            return { trend, seasonal, residual };
-        }
-
-        function generateFeatures(rng) {
-            const feats = [
-                { name: 'Lag-1 (yesterday)',  value: 0.35 + rng() * 0.15 },
-                { name: 'Lag-7 (1 week)',     value: 0.28 + rng() * 0.12 },
-                { name: 'Rolling Mean 7d',    value: 0.22 + rng() * 0.10 },
-                { name: 'Rolling Std 7d',     value: 0.18 + rng() * 0.08 },
-                { name: 'Seasonal Index',     value: 0.12 + rng() * 0.08 },
-                { name: 'Lag-30 (1 month)',   value: 0.10 + rng() * 0.06 },
-                { name: 'Day of Week',        value: 0.07 + rng() * 0.04 },
-                { name: 'Month',              value: 0.05 + rng() * 0.03 },
-            ];
-            const total = feats.reduce((s, f) => s + f.value, 0);
-            return feats.map(f => ({ name: f.name, score: +(f.value / total * 100).toFixed(1) }))
-                        .sort((a, b) => b.score - a.score);
-        }
-
-        // ── MAIN ANALYSIS ─────────────────────────────────────────────────────────
-        async function runAnalysis() {
-            const commodity = document.getElementById('ctrlCommodity').value;
-            const model     = document.getElementById('ctrlModel').value;
-            const days      = parseInt(document.getElementById('ctrlDays').value) || 30;
-
-            const btn = document.getElementById('btnRun');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin-right:6px;border-width:2px"></div>Running…';
-
-            try {
-                const d = await fetchFromAPI('compare_models', { commodity, model, forecast_days: days });
-                renderAll(d);
-                document.getElementById('statusBadge').style.display = 'inline-block';
-                toast('Analysis complete for ' + commodity);
-            } catch (e) {
-                toast('Error: ' + e.message, true);
-            }
-
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-play"></i>Run Analysis';
-        }
-
-        function renderAll(d) {
-            updateMetricTiles(d);
-            renderComparison(d);
-            renderMetricBar(d);
-            renderConfusionMatrix(d.confusion, d.historical.length);
-            renderFeatureImportance(d.features);
-            renderResidualHist(d.residuals);
-            renderResidualTime(d.dates.slice(0, d.historical.length), d.residuals);
-            renderROC(d.roc);
-            renderConfidenceBands(d);
-            renderTrainingLoss(d.training_loss);
-            renderDecomp(d);
-
-            const am = d.arima_metrics, lm = d.lstm_metrics;
-            const winner = am.accuracy >= lm.accuracy
-                ? `ARIMA leads (${am.accuracy}%)`
-                : `LSTM leads (${lm.accuracy}%)`;
-
-            document.getElementById('overviewSubtitle').textContent =
-                `${d.commodity} · ${d.historical.length} historical points · ${d.forecast_days}-day forecast`;
-            document.getElementById('modelBadge').textContent =
-                `ARIMA ${am.accuracy}% · LSTM ${lm.accuracy}% · ${winner}`;
-        }
-
-        // ── Metric Tiles ──────────────────────────────────────────────────────────
-        /**
-         * ═══ IMPROVED R² DISPLAY with better color coding ═══
-         */
-        function r2Display(r2_num) {
-            if (r2_num === null) {
-                return { 
-                    text: 'N/A', 
-                    cls: 'r2-na', 
-                    tip: 'R² not available. Backend may need to be updated to return r2 in metrics.' 
-                };
-            }
-
-            // Color scale for R² values
-            if (r2_num >= 0.9)  return { 
-                text: r2_num.toFixed(3) + ' ✓✓', 
-                cls: 'r2-excellent', 
-                tip: 'Excellent fit! Model explains ≥90% of variance.' 
-            };
-            if (r2_num >= 0.7)  return { 
-                text: r2_num.toFixed(3) + ' ✓', 
-                cls: 'r2-good', 
-                tip: 'Good fit: model explains 70–90% of variance.' 
-            };
-            if (r2_num >= 0.5)  return { 
-                text: r2_num.toFixed(3) + ' ~', 
-                cls: 'r2-ok', 
-                tip: 'Moderate fit. Model explains 50–70% of variance.' 
-            };
-            if (r2_num >= 0.3)  return { 
-                text: r2_num.toFixed(3) + ' ↓', 
-                cls: 'r2-weak', 
-                tip: 'Weak fit (30-50%). Model struggles with this data.' 
-            };
-            if (r2_num >= 0)    return { 
-                text: r2_num.toFixed(3) + ' ↓↓', 
-                cls: 'r2-bad', 
-                tip: 'Very weak fit (<30%). Model barely beats naive mean predictor.' 
-            };
-            
-            // Negative R²
-            return { 
-                text: r2_num.toFixed(3) + ' ✗', 
-                cls: 'r2-bad', 
-                tip: 'Negative R²: test predictions are worse than predicting the mean. Common for out-of-sample forecasts on volatile data or when forecast window is too long.' 
-            };
-        }
-
-        function updateMetricTiles(d) {
-            const selectedModel = document.getElementById('ctrlModel').value;
-            const m  = (selectedModel === 'lstm' && d.lstm_metrics.rmse > 0) ? d.lstm_metrics : d.arima_metrics;
-            const lm = d.lstm_metrics;
-            const label = (selectedModel === 'lstm' && lm.rmse > 0) ? 'LSTM' : 'ARIMA';
-            const r2d = r2Display(m.r2_num);
-
-            // Check if backend is returning r2
-            const backendHasR2 = m.r2_num !== null;
-
-            document.getElementById('metricTiles').innerHTML = `
-                <div class="metric-tile" title="100 − MAPE. How close predictions are to actuals on average.">
-                    <div class="val">${m.accuracy}%</div>
-                    <div class="lbl">Accuracy (${label})</div>
-                </div>
-                <div class="metric-tile accent-blue" title="Root Mean Squared Error — penalises large errors heavily.">
-                    <div class="val">${m.rmse > 0 ? '₦' + m.rmse : '—'}</div>
-                    <div class="lbl">RMSE</div>
-                </div>
-                <div class="metric-tile accent-orange" title="Mean Absolute Error — average ₦ deviation per prediction.">
-                    <div class="val">${m.mae > 0 ? '₦' + m.mae : '—'}</div>
-                    <div class="lbl">MAE</div>
-                </div>
-                <div class="metric-tile accent-purple" title="Mean Absolute Percentage Error — scale-independent error rate.">
-                    <div class="val">${m.mape}%</div>
-                    <div class="lbl">MAPE</div>
-                </div>
-                <div class="metric-tile" title="${r2d.tip}">
-                    <div class="val ${r2d.cls}">${r2d.text}</div>
-                    <div class="lbl">R² Score <span style="font-size:0.6rem;opacity:0.55">ⓘ</span></div>
-                </div>
-                ${!backendHasR2 ? `
-                <div class="lstm-warn">
-                    <i class="fas fa-exclamation-triangle" style="color:var(--gold);flex-shrink:0"></i>
-                    <strong>Backend not returning R².</strong> Update <code>predict_arima()</code> and 
-                    <code>predict_lstm()</code> to include <code>'r2': round(r2, 3)</code> in the returned metrics dict.
-                </div>` : ''}
-            `;
-        }
-
-        // ── Model Comparison Chart ────────────────────────────────────────────────
-        function renderComparison(d) {
-            destroyChart('comparison');
-            const nullFill = new Array(d.historical.length).fill(null);
-            const ctx = document.getElementById('comparisonChart').getContext('2d');
-            charts.comparison = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: d.dates,
-                    datasets: [
-                        { label: 'Actual',         data: [...d.historical, ...new Array(d.forecast_days).fill(null)], borderColor: COLORS.muted,  backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
-                        { label: 'ARIMA Forecast',  data: [...nullFill, ...d.arima], borderColor: COLORS.info,    backgroundColor: 'rgba(26,82,118,0.08)',  borderWidth: 2, pointRadius: 0, tension: 0.4, borderDash: [4,3] },
-                        { label: 'LSTM Forecast',   data: [...nullFill, ...d.lstm],  borderColor: COLORS.gold,    backgroundColor: 'rgba(230,168,23,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.4, borderDash: [8,4] },
-                    ]
-                },
-                options: chartOpts('₦')
-            });
-        }
-
-        // ── Metric Comparison Bar (horizontal, per-metric) ────────────────────────
-        function renderMetricBar(d) {
-            destroyChart('metricBar');
-            const am = d.arima_metrics, lm = d.lstm_metrics;
-            const hasLSTMErrors = lm.rmse > 0 && lm.mae > 0;
-            const ctx = document.getElementById('metricBarChart').getContext('2d');
-
-            // Horizontal bars — each metric on its own row keeps scales natural
-            charts.metricBar = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Accuracy %', 'RMSE (₦)', 'MAE (₦)', 'MAPE %'],
-                    datasets: [
-                        {
-                            label: 'ARIMA',
-                            data: [am.accuracy, am.rmse, am.mae, am.mape],
-                            backgroundColor: 'rgba(26,82,118,0.65)',
-                            borderColor: COLORS.info, borderWidth: 1, borderRadius: 4,
-                        },
-                        {
-                            label: 'LSTM',
-                            data: hasLSTMErrors
-                                ? [lm.accuracy, lm.rmse, lm.mae, lm.mape]
-                                : [lm.accuracy, null, null, lm.mape],
-                            backgroundColor: 'rgba(230,168,23,0.65)',
-                            borderColor: COLORS.gold, borderWidth: 1, borderRadius: 4,
-                        },
-                    ]
-                },
-                options: {
-                    indexAxis: 'y',   // ← horizontal: each metric gets its own row
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, position: 'top', labels: { boxWidth: 10 } },
-                        tooltip: {
-                            callbacks: {
-                                label: c => {
-                                    if (c.parsed.x === null) return c.dataset.label + ': N/A';
-                                    const lbl = c.label;
-                                    const pfx = lbl.includes('₦') ? '₦' : '';
-                                    const sfx = lbl.includes('%') ? '%' : '';
-                                    return `${c.dataset.label}: ${pfx}${c.parsed.x.toFixed(2)}${sfx}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { beginAtZero: true, grid: { color: COLORS.border } },
-                        y: { grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        // ── Confusion Matrix ──────────────────────────────────────────────────────
-        function renderConfusionMatrix(c, total) {
-            const { tp, fp, tn, fn } = c;
-            const pct  = v => ((v / total) * 100).toFixed(1) + '%';
-            const prec = tp / (tp + fp) || 0;
-            const rec  = tp / (tp + fn) || 0;
-            const f1   = 2 * prec * rec / (prec + rec) || 0;
-            const acc  = (tp + tn) / total;
-
-            document.getElementById('confMatrix').innerHTML = `
-                <div class="conf-cell header-cell"></div>
-                <div class="conf-cell header-cell">Pred ↑</div>
-                <div class="conf-cell header-cell">Pred ↓</div>
-                <div style="writing-mode:vertical-lr;text-orientation:mixed;transform:rotate(180deg);font-size:.68rem;color:var(--muted);padding:0 4px;display:flex;align-items:center;justify-content:center;">Actual ↑</div>
-                <div class="conf-cell tp" title="True Positive — correctly predicted price rise"><span>${tp}</span><span class="conf-pct">${pct(tp)}</span></div>
-                <div class="conf-cell fn" title="False Negative — missed a price rise"><span>${fn}</span><span class="conf-pct">${pct(fn)}</span></div>
-                <div style="writing-mode:vertical-lr;text-orientation:mixed;transform:rotate(180deg);font-size:.68rem;color:var(--muted);padding:0 4px;display:flex;align-items:center;justify-content:center;">Actual ↓</div>
-                <div class="conf-cell fp" title="False Positive — predicted rise but price fell"><span>${fp}</span><span class="conf-pct">${pct(fp)}</span></div>
-                <div class="conf-cell tn" title="True Negative — correctly predicted price fall"><span>${tn}</span><span class="conf-pct">${pct(tn)}</span></div>
-            `;
-
-            document.getElementById('confMetrics').innerHTML = [
-                { label: 'Precision', val: (prec * 100).toFixed(1) + '%', c: '' },
-                { label: 'Recall',    val: (rec  * 100).toFixed(1) + '%', c: 'blue' },
-                { label: 'F1 Score',  val: (f1   * 100).toFixed(1) + '%', c: 'orange' },
-                { label: 'Accuracy',  val: (acc  * 100).toFixed(1) + '%', c: 'purple' },
-            ].map(m => `
-                <div class="metric-tile ${m.c ? 'accent-' + m.c : ''}" style="flex:1;min-width:70px;padding:.6rem .5rem">
-                    <div class="val" style="font-size:1rem">${m.val}</div>
-                    <div class="lbl">${m.label}</div>
-                </div>
-            `).join('');
-        }
-
-        // ── Feature Importance ────────────────────────────────────────────────────
-        const featureColors = [
-            COLORS.forest, COLORS.leaf, COLORS.lime, COLORS.gold,
-            COLORS.info, COLORS.error, '#7b1fa2', COLORS.muted
-        ];
-
-        function renderFeatureImportance(features) {
-            document.getElementById('featureImportance').innerHTML = features.map((f, i) => `
-                <div class="prog-item">
-                    <div class="prog-label">
-                        <span class="prog-name">${f.name}</span>
-                        <span class="prog-val">${f.score}%</span>
-                    </div>
-                    <div class="prog-track">
-                        <div class="prog-fill" style="width:${f.score}%;background:${featureColors[i % featureColors.length]}"></div>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // ── Residuals Histogram ───────────────────────────────────────────────────
-        function renderResidualHist(residuals) {
-            destroyChart('residual');
-            const mn = Math.min(...residuals), mx = Math.max(...residuals);
-            const bins = 12, bw = (mx - mn) / bins;
-            const counts = new Array(bins).fill(0);
-            residuals.forEach(r => { const b = Math.min(bins - 1, Math.floor((r - mn) / bw)); counts[b]++; });
-            const labels = counts.map((_, i) => (mn + i * bw).toFixed(1));
-            const ctx = document.getElementById('residualChart').getContext('2d');
-            charts.residual = new Chart(ctx, {
-                type: 'bar',
-                data: { labels, datasets: [{ label: 'Count', data: counts, backgroundColor: 'rgba(30,132,73,0.5)', borderColor: COLORS.success, borderWidth: 1, borderRadius: 3 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { callbacks: { title: ([i]) => 'Error: ₦' + i.label } } },
-                    scales: { y: { grid: { color: COLORS.border } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } } }
-                }
-            });
-        }
-
-        // ── Residuals Over Time ───────────────────────────────────────────────────
-        function renderResidualTime(dates, residuals) {
-            destroyChart('residualTime');
-            const ctx = document.getElementById('residualTimeChart').getContext('2d');
-            charts.residualTime = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Residual (₦)',
-                        data: residuals,
-                        backgroundColor: residuals.map(r => r > 0 ? 'rgba(30,132,73,0.55)' : 'rgba(192,57,43,0.55)'),
-                        borderColor:     residuals.map(r => r > 0 ? COLORS.success : COLORS.error),
-                        borderWidth: 0.5,
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { grid: { color: COLORS.border }, ticks: { callback: v => '₦' + v.toFixed(0) } }, x: { display: false } }
-                }
-            });
-        }
-
-        // ── ROC Curve ─────────────────────────────────────────────────────────────
-        function renderROC(rocPoints) {
-            destroyChart('roc');
-            const auc = rocPoints.reduce((s, pt, i) => {
-                if (i === 0) return 0;
-                return s + (rocPoints[i].fpr - rocPoints[i - 1].fpr) * (rocPoints[i].tpr + rocPoints[i - 1].tpr) / 2;
-            }, 0);
-            const ctx = document.getElementById('rocChart').getContext('2d');
-            charts.roc = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: rocPoints.map(p => (p.fpr * 100).toFixed(0) + '%'),
-                    datasets: [
-                        { label: `ROC (AUC=${auc.toFixed(3)})`, data: rocPoints.map(p => p.tpr), borderColor: COLORS.info, backgroundColor: 'rgba(26,82,118,0.12)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 },
-                        { label: 'Random', data: rocPoints.map(p => p.fpr), borderColor: 'rgba(107,117,102,0.3)', borderWidth: 1, borderDash: [4,4], pointRadius: 0, tension: 0 }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: true, position: 'bottom' }, tooltip: { callbacks: { label: c => 'TPR: ' + (c.parsed.y * 100).toFixed(1) + '%' } } },
-                    scales: { y: { min: 0, max: 1, grid: { color: COLORS.border }, ticks: { callback: v => (v * 100).toFixed(0) + '%' } }, x: { ticks: { maxTicksLimit: 5 }, grid: { display: false } } }
-                }
-            });
-        }
-
-        // ── Confidence Bands ──────────────────────────────────────────────────────
-        function renderConfidenceBands(d) {
-            destroyChart('confidence');
-            const fcDates = d.dates.slice(d.historical.length);
-            const fore    = d[d.model] || d.arima;
-            if (!fore || fore.length === 0) return;
-            const mean  = fore.reduce((s, v) => s + v, 0) / fore.length;
-            const sigma = Math.sqrt(fore.reduce((s, v) => s + (v - mean) ** 2, 0) / fore.length);
-            const ctx   = document.getElementById('confidenceChart').getContext('2d');
-            charts.confidence = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: fcDates,
-                    datasets: [
-                        { label: '95% Upper', data: fore.map((v, i) => v + 1.96 * sigma * (1 + i * 0.02)), borderColor: 'transparent', backgroundColor: 'rgba(46,125,50,0.1)', fill: '+1', pointRadius: 0 },
-                        { label: '80% Upper', data: fore.map((v, i) => v + 1.28 * sigma * (1 + i * 0.02)), borderColor: 'transparent', backgroundColor: 'rgba(46,125,50,0.2)', fill: '+1', pointRadius: 0 },
-                        { label: 'Forecast',  data: fore, borderColor: COLORS.leaf, backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 0, tension: 0.4 },
-                        { label: '80% Lower', data: fore.map((v, i) => v - 1.28 * sigma * (1 + i * 0.02)), borderColor: 'transparent', backgroundColor: 'rgba(46,125,50,0.2)', fill: '-1', pointRadius: 0 },
-                        { label: '95% Lower', data: fore.map((v, i) => v - 1.96 * sigma * (1 + i * 0.02)), borderColor: 'transparent', backgroundColor: 'rgba(46,125,50,0.1)', fill: '-1', pointRadius: 0 },
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '₦' + c.parsed.y.toFixed(2) } } },
-                    scales: { y: { grid: { color: COLORS.border }, ticks: { callback: v => '₦' + v.toFixed(0) } }, x: { display: false } }
-                }
-            });
-        }
-
-        // ── Training Loss ─────────────────────────────────────────────────────────
-        function renderTrainingLoss(loss) {
-            destroyChart('training');
-            const ctx = document.getElementById('trainingChart').getContext('2d');
-            charts.training = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: loss.train.map((_, i) => i + 1),
-                    datasets: [
-                        { label: 'Train Loss',      data: loss.train, borderColor: COLORS.success, backgroundColor: 'rgba(30,132,73,0.05)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.4 },
-                        { label: 'Validation Loss', data: loss.val,   borderColor: COLORS.gold,    backgroundColor: 'rgba(230,168,23,0.05)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.4, borderDash: [4,3] },
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: true, position: 'top' } },
-                    scales: { y: { grid: { color: COLORS.border } }, x: { ticks: { maxTicksLimit: 10 }, grid: { display: false } } }
-                }
-            });
-        }
-
-        // ── Seasonal Decomposition ────────────────────────────────────────────────
-        function renderDecomp(d) {
-            destroyChart('decomp');
-            const ctx = document.getElementById('decompChart').getContext('2d');
-            charts.decomp = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: d.dates.slice(0, d.historical.length),
-                    datasets: [
-                        { label: 'Trend',    data: d.decomp.trend,    borderColor: COLORS.info,  backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.4 },
-                        { label: 'Seasonal', data: d.decomp.seasonal, borderColor: '#7b1fa2',    backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.4 },
-                        { label: 'Residual', data: d.decomp.residual, borderColor: COLORS.gold,  backgroundColor: 'transparent', borderWidth: 1,   pointRadius: 0, tension: 0.3, borderDash: [3,3] },
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: true, position: 'top' } },
-                    scales: { y: { grid: { color: COLORS.border }, ticks: { callback: v => '₦' + v.toFixed(0) } }, x: { display: false } }
-                }
-            });
-        }
-
-        // ── Shared chart options ──────────────────────────────────────────────────
-        function chartOpts(prefix = '') {
-            return {
-                responsive: true, maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { display: true, position: 'top', labels: { boxWidth: 10, padding: 12 } },
-                    tooltip: { callbacks: { label: c => (c.dataset.label || '') + ': ' + prefix + c.parsed.y.toFixed(2) } }
-                },
-                scales: {
-                    y: { grid: { color: COLORS.border }, ticks: { callback: v => prefix + v.toFixed(0) } },
-                    x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
-                }
-            };
-        }
-
-        // ── Toast ─────────────────────────────────────────────────────────────────
-        function toast(msg, error = false) {
-            const el = document.createElement('div');
-            el.className = 'toast-msg' + (error ? ' error' : '');
-            el.textContent = msg;
-            document.getElementById('toastContainer').appendChild(el);
-            setTimeout(() => el.remove(), 3500);
-        }
-
-        // ── Boot ──────────────────────────────────────────────────────────────────
-        document.addEventListener('DOMContentLoaded', async () => {
-            const user = await checkAuth();
-            if (!user) return;
-
-            await loadCommoditiesIntoSelect();
-
-            if (user.role === 'admin') {
-                document.getElementById('navAdminLink').style.display = 'inline-flex';
-            }
-
-            // Pre-select commodity from URL ?commodity=Rice
-            const urlCommodity = new URLSearchParams(window.location.search).get('commodity');
-            if (urlCommodity) {
-                const sel = document.getElementById('ctrlCommodity');
-                const opt = Array.from(sel.options).find(o => o.value === urlCommodity);
-                if (opt) sel.value = urlCommodity;
-            }
-
-            setTimeout(runAnalysis, 200);
-        });
-    </script>
+// ─────────────────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await checkAuth();
+    if (!user) return;
+    await loadCommodities();
+    if (user.role==='admin') document.getElementById('navAdminLink').style.display='inline-flex';
+    const urlC=new URLSearchParams(window.location.search).get('commodity');
+    if (urlC) {
+        const sel=document.getElementById('ctrlCommodity');
+        const o=Array.from(sel.options).find(x=>x.value===urlC);
+        if (o) sel.value=urlC;
+    }
+    setTimeout(runAnalysis, 150);
+});
+</script>
 </body>
 </html>

@@ -794,8 +794,10 @@
         }
 
         function switchProfileTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const btns = document.querySelectorAll('.tab-btn');
+            const contents = document.querySelectorAll('.tab-content');
+            btns.forEach(b => b.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById(tab === 'profile' ? 'tabProfile' : 'tabPassword').classList.add('active');
         }
@@ -993,7 +995,8 @@
                             backgroundColor: 'rgba(46,125,50,0.1)',
                             borderWidth: 2,
                             pointRadius: 0,
-                            tension: 0.4
+                            tension: 0.4,
+                            fill: true
                         },
                         {
                             label: `${modelName} Forecast`,
@@ -1003,27 +1006,20 @@
                             borderWidth: 2,
                             borderDash: [5, 5],
                             pointRadius: 0,
-                            tension: 0.4
+                            tension: 0.4,
+                            fill: true
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: true, position: 'top' },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) }
-                        }
+                        legend: { position: 'top' },
+                        tooltip: { callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) } }
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: { callback: v => '₦' + v.toFixed(0) }
-                        }
-                    }
+                    scales: { y: { beginAtZero: false, ticks: { callback: v => '₦' + v.toFixed(0) } } }
                 }
             });
         }
@@ -1038,7 +1034,8 @@
                     backgroundColor: 'rgba(46,125,50,0.1)',
                     borderWidth: 2,
                     pointRadius: 0,
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 }
             ];
             if (arimaPred) {
@@ -1050,7 +1047,8 @@
                     borderWidth: 2,
                     borderDash: [5, 5],
                     pointRadius: 0,
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 });
             }
             if (lstmPred) {
@@ -1062,7 +1060,8 @@
                     borderWidth: 2,
                     borderDash: [10, 5],
                     pointRadius: 0,
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 });
             }
             const ctx = document.getElementById('priceChart').getContext('2d');
@@ -1072,20 +1071,12 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: true, position: 'top' },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) }
-                        }
+                        legend: { position: 'top' },
+                        tooltip: { callbacks: { label: c => c.dataset.label + ': ₦' + c.parsed.y.toFixed(2) } }
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: { callback: v => '₦' + v.toFixed(0) }
-                        }
-                    }
+                    scales: { y: { beginAtZero: false, ticks: { callback: v => '₦' + v.toFixed(0) } } }
                 }
             });
         }
@@ -1093,13 +1084,14 @@
         function getRecommendation(trend, change) {
             const abs = Math.abs(change);
             if (trend === 'increase') {
-                return abs > 10
-                    ? 'Strong upward trend expected. Consider holding current stock or buying more if planning to sell later.'
-                    : 'Moderate price increase expected. Good time for steady sales.';
+                if (abs > 10) return 'Strong upward trend expected. Consider holding current stock or buying more.';
+                if (abs > 5) return 'Moderate price increase expected. Good time for steady sales.';
+                return 'Slight upward trend. Monitor market conditions.';
+            } else {
+                if (abs > 10) return 'Significant price drop expected. Consider selling current stock soon.';
+                if (abs > 5) return 'Moderate price decrease expected. Consider reducing stock.';
+                return 'Slight price decrease expected. Monitor market closely.';
             }
-            return abs > 10
-                ? 'Significant price drop expected. Consider selling current stock soon.'
-                : 'Slight price decrease expected. Monitor market closely.';
         }
 
         async function loadStatistics() {
@@ -1130,7 +1122,7 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${stats.volatility}%</div>
-                        <div class="stat-label">Volatility</div>
+                        <div class="stat-label">Volatility (30d)</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">₦${stats.std_dev}</div>

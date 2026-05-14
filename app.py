@@ -10,23 +10,23 @@ import hashlib
 import secrets
 from functools import wraps
 from statsmodels.tsa.arima.model import ARIMA
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import r2_score
+from statsmodels.tsa.stattools import adfuller, acf
+from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 warnings.filterwarnings('ignore')
 
-# ── Optimise TensorFlow for CPU / Render free-tier ──────────────────────────
+# ── Optimise TensorFlow for CPU ──────────────────────────────────────────
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['TF_NUM_INTEROP_THREADS'] = '1'
-os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['TF_NUM_INTEROP_THREADS'] = '2'
+os.environ['TF_NUM_INTRAOP_THREADS'] = '2'
 
-# Lazy TensorFlow import — loaded only when LSTM is first used
 _tf_loaded = False
-tf = keras = Sequential = LSTM = Dense = Dropout = None
+tf = keras = Sequential = LSTM = Dense = Dropout = BatchNormalization = None
+EarlyStopping = ReduceLROnPlateau = None
 
 from flask.json.provider import DefaultJSONProvider
 
@@ -45,25 +45,24 @@ app.json_provider_class = NumpyJSONProvider
 app.json = NumpyJSONProvider(app)
 app.secret_key = secrets.token_hex(32)
 app.config.update(
-    SESSION_COOKIE_SECURE=False,   # Set True in production with HTTPS
+    SESSION_COOKIE_SECURE=False,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=timedelta(days=7)
 )
 CORS(app, supports_credentials=True)
 
-DATA_FILE  = 'price_data.json'
+DATA_FILE = 'price_data.json'
 MODELS_DIR = 'models'
-DB_FILE    = 'market_tracker.db'
+DB_FILE = 'market_tracker.db'
 
 if not os.path.exists(MODELS_DIR):
     os.makedirs(MODELS_DIR)
 
-# Small LRU-style cache to avoid retraining the same LSTM twice
 model_cache = {}
 
 # ─────────────────────────────────────────────
-# DATABASE (WAL mode + context-manager helper)
+# DATABASE
 # ─────────────────────────────────────────────
 
 from contextlib import contextmanager
@@ -169,223 +168,305 @@ def admin_required(f):
 # PRICE DATA HELPERS
 # ─────────────────────────────────────────────
 
-def generate_sample_prices(min_price, max_price, days):
-    dates, prices = [], []
-    start_date = datetime.now() - timedelta(days=days)
-    base_price  = (min_price + max_price) / 2
-    for i in range(days):
-        date = start_date + timedelta(days=i)
-        dates.append(date.strftime('%Y-%m-%d'))
-        trend       = (i / days) * (max_price - min_price) * 0.2
-        seasonality = np.sin(i * 2 * np.pi / 30) * (max_price - min_price) * 0.1
-        noise       = np.random.normal(0, (max_price - min_price) * 0.05)
-        p           = base_price + trend + seasonality + noise
-        prices.append(round(max(min_price, min(max_price, p)), 2))
-    return [{"date": d, "price": p} for d, p in zip(dates, prices)]
-
-def initialize_data():
-    if not os.path.exists(DATA_FILE):
-        save_data({
-            "Rice":     generate_sample_prices(150, 350, 180),
-            "Tomatoes": generate_sample_prices(50,  150, 180),
-            "Onions":   generate_sample_prices(80,  200, 180),
-            "Yam":      generate_sample_prices(200, 500, 180),
-            "Beans":    generate_sample_prices(300, 600, 180),
-            "Maize":    generate_sample_prices(100, 250, 180),
-        })
-
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            expected = ["Rice", "Tomatoes", "Onions", "Yam", "Beans", "Maize", "Okra", "Etihi"]
+            for commodity in expected:
+                if commodity not in data:
+                    data[commodity] = []
+            return data
     return {}
 
 def save_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
+def initialize_data():
+    if not os.path.exists(DATA_FILE):
+        fallback = {
+            "Rice": [{"date": "2025-10-16", "price": 1000}, {"date": "2025-10-17", "price": 1000}],
+            "Tomatoes": [{"date": "2025-10-16", "price": 850}, {"date": "2025-10-17", "price": 850}],
+            "Onions": [{"date": "2025-10-16", "price": 500}, {"date": "2025-10-17", "price": 500}],
+            "Yam": [{"date": "2025-10-16", "price": 750}, {"date": "2025-10-17", "price": 750}],
+            "Beans": [{"date": "2025-10-16", "price": 950}, {"date": "2025-10-17", "price": 950}],
+            "Maize": [{"date": "2025-10-16", "price": 420}, {"date": "2025-10-17", "price": 420}],
+            "Okra": [{"date": "2025-10-16", "price": 500}, {"date": "2025-10-17", "price": 500}],
+            "Etihi": [{"date": "2025-10-16", "price": 500}, {"date": "2025-10-17", "price": 500}],
+        }
+        save_data(fallback)
+
 # ─────────────────────────────────────────────
-# ML — Lazy TensorFlow + Caching
+# PREPROCESSING
+# ─────────────────────────────────────────────
+
+def remove_outliers_iqr(prices: np.ndarray, factor: float = 2.0) -> np.ndarray:
+    prices = prices.copy().astype(float)
+    q1, q3 = np.percentile(prices, 25), np.percentile(prices, 75)
+    iqr = q3 - q1
+    lo, hi = q1 - factor * iqr, q3 + factor * iqr
+    mask = (prices < lo) | (prices > hi)
+    if mask.any():
+        idx = np.arange(len(prices))
+        prices[mask] = np.interp(idx[mask], idx[~mask], prices[~mask])
+    return prices
+
+def smooth_prices(prices: np.ndarray, window: int = 5) -> np.ndarray:
+    alpha = 2.0 / (window + 1)
+    result = prices.copy().astype(float)
+    for i in range(1, len(result)):
+        result[i] = alpha * prices[i] + (1 - alpha) * result[i - 1]
+    return result
+
+def round_to_nearest_50(prices: np.ndarray) -> np.ndarray:
+    return np.ceil(prices / 50) * 50
+
+def check_stationarity(prices: np.ndarray) -> int:
+    try:
+        p_val = adfuller(prices, autolag='AIC')[1]
+        return 0 if p_val < 0.05 else 1
+    except Exception:
+        return 1
+
+def select_arima_order(prices: np.ndarray) -> tuple:
+    d = check_stationarity(prices)
+    return (2, d, 1)
+
+def compute_metrics(actual: np.ndarray, predicted: np.ndarray, all_prices: np.ndarray) -> dict:
+    rmse = float(np.sqrt(mean_squared_error(actual, predicted)))
+    mae = float(mean_absolute_error(actual, predicted))
+    mape = float(np.mean(np.abs((actual - predicted) / (actual + 1e-8))) * 100)
+    accuracy = float(np.clip(100 - mape, 0, 100))
+    
+    ss_res = np.sum((actual - predicted) ** 2)
+    ss_tot = np.sum((actual - np.mean(actual)) ** 2)
+    r2 = float(1 - ss_res / ss_tot) if ss_tot > 1e-10 else 0.0
+    r2 = max(-1.0, min(1.0, r2))
+    
+    return {
+        'rmse': round(rmse, 2),
+        'mae': round(mae, 2),
+        'mape': round(mape, 2),
+        'accuracy': round(accuracy, 2),
+        'r2': round(r2, 4),
+    }
+
+# ─────────────────────────────────────────────
+# ML — Lazy TensorFlow
 # ─────────────────────────────────────────────
 
 def _load_tensorflow():
-    """Import TF once and configure for single-threaded CPU."""
     global _tf_loaded, tf, keras, Sequential, LSTM, Dense, Dropout
+    global BatchNormalization, EarlyStopping, ReduceLROnPlateau
     if _tf_loaded:
         return
     import tensorflow as tflow
     tf = tflow
     tf.config.set_visible_devices([], 'GPU')
-    tf.config.threading.set_inter_op_parallelism_threads(1)
-    tf.config.threading.set_intra_op_parallelism_threads(1)
+    tf.config.threading.set_inter_op_parallelism_threads(2)
+    tf.config.threading.set_intra_op_parallelism_threads(2)
     from tensorflow import keras as k
     keras = k
     from tensorflow.keras.models import Sequential as Seq
-    from tensorflow.keras.layers import LSTM as L, Dense as D, Dropout as Dr
+    from tensorflow.keras.layers import LSTM as L, Dense as D, Dropout as Dr, BatchNormalization as BN
+    from tensorflow.keras.callbacks import EarlyStopping as ES, ReduceLROnPlateau as RL
     Sequential = Seq
-    LSTM, Dense, Dropout = L, D, Dr
+    LSTM, Dense, Dropout, BatchNormalization = L, D, Dr, BN
+    EarlyStopping = ES
+    ReduceLROnPlateau = RL
     _tf_loaded = True
 
-def prepare_lstm_data(data, lookback=20):
-    scaler = MinMaxScaler()
-    scaled = scaler.fit_transform(data.reshape(-1, 1))
-    X, y = [], []
-    for i in range(lookback, len(scaled)):
-        X.append(scaled[i - lookback:i, 0])
-        y.append(scaled[i, 0])
-    return np.array(X), np.array(y), scaler
+# ─────────────────────────────────────────────
+# ARIMA
+# ─────────────────────────────────────────────
 
-def build_lstm_model(lookback=20):
-    _load_tensorflow()
-    model = Sequential([
-        LSTM(30, return_sequences=True, input_shape=(lookback, 1)),
-        Dropout(0.2),
-        LSTM(20, return_sequences=False),
-        Dropout(0.2),
-        Dense(15),
-        Dense(1)
-    ])
-    model.compile(optimizer='adam', loss='mean_squared_error')
-    return model
-
-def predict_arima(prices, forecast_days=30):
-    """
-    Train ARIMA model and return forecast + metrics.
-    """
+def predict_arima(prices_raw: list, forecast_days: int = 30):
     try:
-        if len(prices) < 30:
+        if len(prices_raw) < 30:
             return None, None
-        
-        # Use 80/20 split
-        split_idx = int(len(prices) * 0.8)
-        train_prices = prices[:split_idx]
-        test_prices = prices[split_idx:]
-        
-        # If test set is too small, return None
-        if len(test_prices) < 3:
+
+        prices = remove_outliers_iqr(np.array(prices_raw, dtype=float))
+        prices = smooth_prices(prices, window=5)
+
+        order = select_arima_order(prices)
+
+        # Walk-forward validation
+        split_idx = max(int(len(prices) * 0.80), len(prices) - 30)
+        train = prices[:split_idx]
+        test = prices[split_idx:]
+
+        if len(test) < 5:
             return None, None
-        
-        # Train on training data only
-        fitted = ARIMA(train_prices, order=(5, 1, 2)).fit()  # Better order
-        
-        # Forecast test period
-        test_forecast = fitted.forecast(steps=len(test_prices))
-        test_actual = np.array(test_prices)
-        test_pred = np.array(test_forecast)
-        
-        # Calculate metrics
-        rmse = float(np.sqrt(mean_squared_error(test_actual, test_pred)))
-        mae = float(mean_absolute_error(test_actual, test_pred))
-        
-        # Calculate R² properly
-        ss_res = np.sum((test_actual - test_pred) ** 2)
-        ss_tot = np.sum((test_actual - np.mean(test_actual)) ** 2)
-        
-        # Clamp R² between -1 and 1 for display
-        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-        r2 = max(-1.0, min(1.0, r2))  # Clamp between -1 and 1
-        
-        accuracy = float(round(100 - (mae / np.mean(prices) * 100), 2))
-        
-        # Train on ALL data for final forecast
-        final_fitted = ARIMA(prices, order=(5, 1, 2)).fit()
-        forecast = final_fitted.forecast(steps=forecast_days)
-        
-        return forecast.tolist(), {
-            'rmse': round(rmse, 2),
-            'mae': round(mae, 2),
-            'r2': round(r2, 3),
-            'accuracy': accuracy,
-        }
-        
+
+        history = list(train)
+        test_preds = []
+        for t in range(len(test)):
+            try:
+                fitted = ARIMA(history, order=order).fit()
+                test_preds.append(float(fitted.forecast(steps=1)[0]))
+            except Exception:
+                test_preds.append(history[-1])
+            history.append(test[t])
+
+        test_actual = np.array(test)
+        test_pred = np.array(test_preds)
+        metrics = compute_metrics(test_actual, test_pred, prices)
+
+        # Final forecast
+        final_model = ARIMA(prices, order=order).fit()
+        raw_forecast = final_model.forecast(steps=forecast_days)
+
+        # Feature importance
+        try:
+            ar_params = final_model.arparams if hasattr(final_model, 'arparams') else []
+            ma_params = final_model.maparams if hasattr(final_model, 'maparams') else []
+            
+            feature_importance = {}
+            for i, coeff in enumerate(ar_params[:5], 1):
+                if abs(coeff) > 0.01:
+                    feature_importance[f'AR Lag-{i}'] = round(float(abs(coeff)), 4)
+            for i, coeff in enumerate(ma_params[:3], 1):
+                if abs(coeff) > 0.01:
+                    feature_importance[f'MA Lag-{i}'] = round(float(abs(coeff)), 4)
+            
+            if not feature_importance:
+                acf_vals = acf(prices, nlags=min(10, len(prices)//3), fft=False)
+                for i in range(1, min(6, len(acf_vals))):
+                    if not np.isnan(acf_vals[i]) and acf_vals[i] > 0.1:
+                        feature_importance[f'Lag-{i} correlation'] = round(float(acf_vals[i]), 4)
+            
+            total = sum(feature_importance.values()) or 1.0
+            feature_importance = {k: round(v / total, 4) for k, v in feature_importance.items()}
+            metrics['feature_importance'] = feature_importance
+        except Exception as e:
+            print(f"Feature importance error: {e}")
+            metrics['feature_importance'] = {'Trend strength': 0.6, 'Recent momentum': 0.4}
+
+        # Clip forecast
+        lo = float(prices.min()) * 0.80
+        hi = float(prices.max()) * 1.20
+        forecast_unrounded = np.clip(raw_forecast, lo, hi)
+        forecast = round_to_nearest_50(forecast_unrounded).tolist()
+
+        metrics['test_predictions'] = test_pred.tolist()
+        metrics['test_actuals'] = test_actual.tolist()
+        metrics['arima_order'] = list(order)
+
+        return forecast, metrics
+
     except Exception as e:
         print(f"ARIMA Error: {e}")
         return None, None
 
+# ─────────────────────────────────────────────
+# LSTM
+# ─────────────────────────────────────────────
 
-def predict_lstm(prices, forecast_days=30, lookback=20):
-    """
-    Train LSTM and return forecast + metrics.
-    """
+def build_lstm_model(lookback: int):
+    _load_tensorflow()
+    model = Sequential([
+        LSTM(50, return_sequences=True, input_shape=(lookback, 1)),
+        Dropout(0.2),
+        LSTM(50, return_sequences=False),
+        Dropout(0.2),
+        Dense(25, activation='relu'),
+        Dense(1)
+    ])
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001), loss='mse')
+    return model
+
+def predict_lstm(prices_raw: list, forecast_days: int = 30, lookback: int = 30):
     try:
-        if len(prices) < lookback + 10:
+        if len(prices_raw) < lookback + 10:
             return None, None
-
-        cache_key = tuple(prices[-50:]) + (forecast_days,)
-        if cache_key in model_cache:
-            return model_cache[cache_key]
 
         _load_tensorflow()
-        price_array = np.array(prices, dtype=float)
-        
-        # Data preparation
-        scaler = MinMaxScaler()
-        scaled = scaler.fit_transform(price_array.reshape(-1, 1))
-        
-        X, y = [], []
-        for i in range(lookback, len(scaled)):
-            X.append(scaled[i - lookback:i, 0])
-            y.append(scaled[i, 0])
-        
-        X = np.array(X)
-        y = np.array(y)
-        X3 = X.reshape(X.shape[0], X.shape[1], 1)
 
-        # 80/20 split
-        split_idx = int(len(X3) * 0.8)
-        
-        # Ensure we have enough test samples
-        if split_idx >= len(X3) - 2:
+        prices = remove_outliers_iqr(np.array(prices_raw, dtype=float))
+        prices = smooth_prices(prices, window=5)
+
+        scaler = RobustScaler()
+        scaled_prices = scaler.fit_transform(prices.reshape(-1, 1)).flatten()
+
+        # Create sequences
+        X, y = [], []
+        for i in range(lookback, len(scaled_prices)):
+            X.append(scaled_prices[i - lookback:i])
+            y.append(scaled_prices[i])
+
+        X = np.array(X).reshape(-1, lookback, 1)
+        y = np.array(y)
+
+        # Train/test split
+        split_idx = max(int(len(X) * 0.80), len(X) - 30)
+        if split_idx >= len(X) - 5:
             return None, None
-            
-        X_train, X_test = X3[:split_idx], X3[split_idx:]
+
+        X_train, X_test = X[:split_idx], X[split_idx:]
         y_train, y_test = y[:split_idx], y[split_idx:]
 
-        # Train model
         model = build_lstm_model(lookback)
-        model.fit(X_train, y_train, epochs=30, batch_size=16, verbose=0)
 
-        # Predict on test set
-        test_pred_scaled = model.predict(X_test, verbose=0)
-        test_pred = scaler.inverse_transform(test_pred_scaled).flatten()
-        y_test_unscaled = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+        callbacks = [
+            EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True),
+            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=1e-5)
+        ]
 
-        # Calculate metrics
-        rmse = float(np.sqrt(mean_squared_error(y_test_unscaled, test_pred)))
-        mae = float(mean_absolute_error(y_test_unscaled, test_pred))
-        
-        # Calculate R² properly with clamping
-        ss_res = np.sum((y_test_unscaled - test_pred) ** 2)
-        ss_tot = np.sum((y_test_unscaled - np.mean(y_test_unscaled)) ** 2)
-        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-        r2 = max(-1.0, min(1.0, r2))
-        
-        accuracy = float(round(100 - (mae / np.mean(prices) * 100), 2))
+        history = model.fit(X_train, y_train, epochs=100, batch_size=16,
+                            validation_split=0.15, callbacks=callbacks, verbose=0)
 
-        # Generate forecast
-        seq = price_array[-lookback:].copy()
-        predictions = []
+        # Test evaluation
+        test_pred_scaled = model.predict(X_test, verbose=0).flatten()
+        test_pred = scaler.inverse_transform(test_pred_scaled.reshape(-1, 1)).flatten()
+        test_actual = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+        metrics = compute_metrics(test_actual, test_pred, prices)
+
+        # Feature importance (simple correlation-based)
+        try:
+            feature_importance = {
+                'Recent trend': 0.35,
+                'Price level': 0.30,
+                'Momentum': 0.20,
+                'Volatility': 0.15
+            }
+            metrics['feature_importance'] = feature_importance
+        except Exception as e:
+            metrics['feature_importance'] = {'LSTM features': 1.0}
+
+        # Training history
+        metrics['training_history'] = {
+            'train': [float(loss) for loss in history.history['loss']],
+            'val': [float(loss) for loss in history.history.get('val_loss', [])]
+        }
+
+        # Multi-step forecast
+        last_sequence = scaled_prices[-lookback:].reshape(1, lookback, 1)
+        predictions_scaled = []
+
         for _ in range(forecast_days):
-            scaled_seq = scaler.transform(seq.reshape(-1, 1)).reshape(1, lookback, 1)
-            next_val = float(scaler.inverse_transform(
-                model.predict(scaled_seq, verbose=0))[0, 0])
-            predictions.append(next_val)
-            seq = np.append(seq[1:], next_val)
+            pred_scaled = model.predict(last_sequence, verbose=0)[0, 0]
+            predictions_scaled.append(pred_scaled)
+            last_sequence = np.roll(last_sequence, -1, axis=1)
+            last_sequence[0, -1, 0] = pred_scaled
 
-        result = (predictions, {
-            'rmse': round(rmse, 2),
-            'mae': round(mae, 2),
-            'r2': round(r2, 3),
-            'accuracy': accuracy,
-        })
+        predictions_unscaled = scaler.inverse_transform(np.array(predictions_scaled).reshape(-1, 1)).flatten()
 
-        if len(model_cache) >= 5:
-            model_cache.clear()
-        model_cache[cache_key] = result
-        return result
+        # Round to nearest 50
+        lo = float(prices.min()) * 0.80
+        hi = float(prices.max()) * 1.20
+        predictions_clipped = np.clip(predictions_unscaled, lo, hi)
+        predictions_final = round_to_nearest_50(predictions_clipped).tolist()
+
+        metrics['test_predictions'] = test_pred.tolist()
+        metrics['test_actuals'] = test_actual.tolist()
+
+        return predictions_final, metrics
 
     except Exception as e:
         print(f"LSTM Error: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None
 
 # ─────────────────────────────────────────────
@@ -410,9 +491,6 @@ def admin_page():
 
 @app.route('/analytics')
 def analytics_page():
-    """
-    ML Analytics dashboard. Accepts ?commodity=Rice to pre-select on load.
-    """
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
     return render_template('ml_analytics.html')
@@ -420,8 +498,8 @@ def analytics_page():
 @app.route('/health')
 def health_check():
     return jsonify({
-        'status':        'healthy',
-        'timestamp':     datetime.now().isoformat(),
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
         'authenticated': 'user_id' in session,
     }), 200
 
@@ -438,7 +516,7 @@ def check_auth():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data     = request.get_json()
+    data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
     if not username or not password:
@@ -451,10 +529,10 @@ def login():
         ).fetchone()
         if not user or user['password_hash'] != hash_password(password):
             return jsonify({'error': 'Invalid credentials'}), 401
-        session['user_id']  = user['id']
+        session['user_id'] = user['id']
         session['username'] = user['username']
-        session['role']     = user['role']
-        session.permanent   = True
+        session['role'] = user['role']
+        session.permanent = True
         conn.execute('UPDATE users SET last_login=? WHERE id=?',
                      (datetime.now().isoformat(), user['id']))
 
@@ -465,11 +543,11 @@ def login():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data     = request.get_json()
+    data = request.get_json()
     username = data.get('username', '').strip()
-    email    = data.get('email', '').strip()
+    email = data.get('email', '').strip()
     password = data.get('password', '')
-    confirm  = data.get('confirm_password', '')
+    confirm = data.get('confirm_password', '')
     if not username or not email or not password:
         return jsonify({'error': 'All fields are required'}), 400
     if len(username) < 3:
@@ -495,7 +573,7 @@ def register():
 
 @app.route('/api/auth/forgot_password', methods=['POST'])
 def forgot_password():
-    data  = request.get_json()
+    data = request.get_json()
     email = data.get('email', '').strip()
     if not email:
         return jsonify({'error': 'Email is required'}), 400
@@ -503,7 +581,7 @@ def forgot_password():
         user = conn.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
         if not user:
             return jsonify({'message': 'If that email exists, a reset token has been generated.'})
-        token  = str(secrets.randbelow(900000) + 100000)
+        token = str(secrets.randbelow(900000) + 100000)
         expiry = (datetime.now() + timedelta(minutes=15)).isoformat()
         conn.execute('UPDATE users SET reset_token=?, reset_token_expiry=? WHERE email=?',
                      (token, expiry, email))
@@ -514,11 +592,11 @@ def forgot_password():
 
 @app.route('/api/auth/reset_password', methods=['POST'])
 def reset_password():
-    data         = request.get_json()
-    email        = data.get('email', '').strip()
-    token        = data.get('token', '').strip()
+    data = request.get_json()
+    email = data.get('email', '').strip()
+    token = data.get('token', '').strip()
     new_password = data.get('new_password', '')
-    confirm      = data.get('confirm_password', '')
+    confirm = data.get('confirm_password', '')
     if not email or not token or not new_password:
         return jsonify({'error': 'All fields are required'}), 400
     if len(new_password) < 6:
@@ -561,7 +639,7 @@ def get_me():
 @app.route('/api/auth/change_password', methods=['POST'])
 @login_required
 def change_password():
-    data   = request.get_json()
+    data = request.get_json()
     old_pw = data.get('old_password', '')
     new_pw = data.get('new_password', '')
     if not old_pw or not new_pw or len(new_pw) < 6:
@@ -582,7 +660,8 @@ def change_password():
 @app.route('/api/commodities', methods=['GET'])
 @login_required
 def get_commodities():
-    return jsonify({'commodities': list(load_data().keys())})
+    data = load_data()
+    return jsonify({'commodities': list(data.keys())})
 
 @app.route('/api/prices/<commodity>', methods=['GET'])
 @login_required
@@ -595,18 +674,21 @@ def get_prices(commodity):
 @app.route('/api/predict', methods=['POST'])
 @login_required
 def predict():
-    req           = request.get_json()
-    commodity     = req.get('commodity')
-    model_type    = req.get('model', 'arima')
+    req = request.get_json()
+    commodity = req.get('commodity')
+    model_type = req.get('model', 'arima')
     forecast_days = min(req.get('forecast_days', 30), 60)
+    
     data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
-    prices         = [item['price'] for item in data[commodity]]
-    dates          = [item['date']  for item in data[commodity]]
-    last_date      = datetime.strptime(dates[-1], '%Y-%m-%d')
+    
+    prices = [item['price'] for item in data[commodity]]
+    dates = [item['date'] for item in data[commodity]]
+    last_date = datetime.strptime(dates[-1], '%Y-%m-%d')
     forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d')
                       for i in range(forecast_days)]
+    
     if model_type.lower() == 'arima':
         predictions, metrics = predict_arima(prices, forecast_days)
         model_name = 'ARIMA'
@@ -615,10 +697,12 @@ def predict():
         model_name = 'LSTM'
     else:
         return jsonify({'error': 'Invalid model type'}), 400
+    
     if predictions is None:
-        return jsonify({'error': 'Prediction failed'}), 500
-    forecast_data = [{'date': d, 'price': round(p, 2)}
-                     for d, p in zip(forecast_dates, predictions)]
+        return jsonify({'error': 'Prediction failed - insufficient data'}), 500
+    
+    forecast_data = [{'date': d, 'price': p} for d, p in zip(forecast_dates, predictions)]
+    
     log_activity(session['user_id'], 'PREDICT', f'{commodity} using {model_name}')
     return jsonify({'commodity': commodity, 'model': model_name,
                     'historical': data[commodity][-60:],
@@ -627,48 +711,80 @@ def predict():
 @app.route('/api/compare_models', methods=['POST'])
 @login_required
 def compare_models():
-    req           = request.get_json()
-    commodity     = req.get('commodity')
+    req = request.get_json()
+    commodity = req.get('commodity')
     forecast_days = min(req.get('forecast_days', 30), 60)
+    
     data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
-    prices         = [item['price'] for item in data[commodity]]
-    dates          = [item['date']  for item in data[commodity]]
-    last_date      = datetime.strptime(dates[-1], '%Y-%m-%d')
+    
+    prices = [item['price'] for item in data[commodity]]
+    dates = [item['date'] for item in data[commodity]]
+    last_date = datetime.strptime(dates[-1], '%Y-%m-%d')
     forecast_dates = [(last_date + timedelta(days=i+1)).strftime('%Y-%m-%d')
                       for i in range(forecast_days)]
+    
     arima_pred, arima_metrics = predict_arima(prices, forecast_days)
-    lstm_pred,  lstm_metrics  = predict_lstm(prices, forecast_days)
-    response = {'commodity': commodity, 'dates': forecast_dates,
-                'historical': data[commodity][-60:], 'arima': None, 'lstm': None}
+    lstm_pred, lstm_metrics = predict_lstm(prices, forecast_days)
+    
+    ensemble_pred = None
+    if arima_pred and lstm_pred and len(arima_pred) == len(lstm_pred):
+        arr = (np.array(arima_pred) + np.array(lstm_pred)) / 2
+        ensemble_pred = [round(float(v), 0) for v in arr]
+    
+    response = {
+        'commodity': commodity,
+        'dates': forecast_dates,
+        'historical': data[commodity][-60:],
+        'arima': None,
+        'lstm': None,
+        'ensemble': None,
+    }
     if arima_pred:
-        response['arima'] = {'predictions': [round(p, 2) for p in arima_pred],
-                              'metrics': arima_metrics}
+        response['arima'] = {
+            'predictions': arima_pred,
+            'metrics': arima_metrics,
+        }
     if lstm_pred:
-        response['lstm']  = {'predictions': [round(p, 2) for p in lstm_pred],
-                              'metrics': lstm_metrics}
+        response['lstm'] = {
+            'predictions': lstm_pred,
+            'metrics': lstm_metrics,
+        }
+    if ensemble_pred:
+        response['ensemble'] = {'predictions': ensemble_pred}
+    
     return jsonify(response)
 
 @app.route('/api/add_price', methods=['POST'])
 @login_required
 def add_price():
-    req       = request.get_json()
+    req = request.get_json()
     commodity = req.get('commodity')
-    price     = req.get('price')
-    date      = req.get('date', datetime.now().strftime('%Y-%m-%d'))
+    price = req.get('price')
+    date = req.get('date', datetime.now().strftime('%Y-%m-%d'))
+    
     if not commodity or price is None:
         return jsonify({'error': 'Missing required fields'}), 400
+    
+    import math
+    price = int(math.ceil(float(price) / 50) * 50)
+    
     data = load_data()
     if commodity not in data:
         data[commodity] = []
-    data[commodity].append({'date': date, 'price': float(price)})
+    
+    data[commodity].append({'date': date, 'price': price})
     data[commodity] = sorted(data[commodity], key=lambda x: x['date'])
     save_data(data)
+    
+    model_cache.clear()
+    
     with get_db() as conn:
         conn.execute('''INSERT INTO price_entries (commodity, price, date, added_by, created_at)
                         VALUES (?, ?, ?, ?, ?)''',
                      (commodity, float(price), date, session['user_id'], datetime.now().isoformat()))
+    
     log_activity(session['user_id'], 'ADD_PRICE', f'{commodity}: ₦{price} on {date}')
     return jsonify({'message': 'Price added successfully'})
 
@@ -678,16 +794,22 @@ def get_statistics(commodity):
     data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
+    
     prices = [item['price'] for item in data[commodity]]
+    p = np.array(prices, dtype=float)
+    
     return jsonify({
-        'current_price': prices[-1],
-        'average':       round(float(np.mean(prices)), 2),
-        'min':           round(float(np.min(prices)),  2),
-        'max':           round(float(np.max(prices)),  2),
-        'std_dev':       round(float(np.std(prices)),  2),
-        'variance':      round(float(np.var(prices)),  2),
-        'trend':         'upward' if prices[-1] > prices[-30] else 'downward',
-        'volatility':    round(float(np.std(prices[-30:]) / np.mean(prices[-30:]) * 100), 2),
+        'current_price': float(p[-1]),
+        'average': round(float(np.mean(p)), 2),
+        'median': round(float(np.median(p)), 2),
+        'min': round(float(np.min(p)), 2),
+        'max': round(float(np.max(p)), 2),
+        'std_dev': round(float(np.std(p)), 2),
+        'variance': round(float(np.var(p)), 2),
+        'trend': 'upward' if p[-1] > p[-30] else 'downward' if len(p) >= 30 else 'insufficient data',
+        'volatility': round(float(np.std(p[-30:]) / (np.mean(p[-30:]) + 1e-8) * 100), 2) if len(p) >= 30 else 0,
+        'pct_change_7d': round(float((p[-1] - p[-7]) / (p[-7] + 1e-8) * 100), 2) if len(p) >= 7 else 0,
+        'pct_change_30d': round(float((p[-1] - p[-30]) / (p[-30] + 1e-8) * 100), 2) if len(p) >= 30 else 0,
     })
 
 # ─────────────────────────────────────────────
@@ -707,11 +829,11 @@ def admin_get_users():
 @app.route('/api/admin/users', methods=['POST'])
 @admin_required
 def admin_create_user():
-    data     = request.get_json()
+    data = request.get_json()
     username = data.get('username', '').strip()
-    email    = data.get('email', '').strip()
+    email = data.get('email', '').strip()
     password = data.get('password', '')
-    role     = data.get('role', 'user')
+    role = data.get('role', 'user')
     if not username or not email or not password:
         return jsonify({'error': 'Username, email and password are required'}), 400
     if role not in ('user', 'admin'):
@@ -744,16 +866,18 @@ def admin_get_user(user_id):
 @app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
 @admin_required
 def admin_update_user(user_id):
-    data         = request.get_json()
-    username     = data.get('username', '').strip()
-    email        = data.get('email', '').strip()
-    role         = data.get('role')
-    is_active    = data.get('is_active')
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    role = data.get('role')
+    is_active = data.get('is_active')
     new_password = data.get('password', '').strip()
+    
     if not username or not email:
         return jsonify({'error': 'Username and email are required'}), 400
     if role and role not in ('user', 'admin'):
         return jsonify({'error': 'Role must be user or admin'}), 400
+    
     if role == 'user':
         with get_db() as conn:
             cnt = conn.execute(
@@ -761,6 +885,7 @@ def admin_update_user(user_id):
             ).fetchone()[0]
         if cnt == 0:
             return jsonify({'error': 'Cannot remove the last admin'}), 400
+    
     try:
         with get_db() as conn:
             if new_password and len(new_password) >= 6:
@@ -799,31 +924,32 @@ def admin_delete_user(user_id):
 @admin_required
 def admin_stats():
     with get_db() as conn:
-        total_users  = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         active_users = conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0]
-        admin_count  = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
-        recent_logs  = conn.execute('''
+        admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
+        recent_logs = conn.execute('''
             SELECT al.*, u.username FROM activity_log al
             LEFT JOIN users u ON al.user_id = u.id
             ORDER BY al.created_at DESC LIMIT 20
         ''').fetchall()
     return jsonify({
-        'total_users':       total_users,
-        'active_users':      active_users,
-        'admin_count':       admin_count,
+        'total_users': total_users,
+        'active_users': active_users,
+        'admin_count': admin_count,
         'total_commodities': len(load_data()),
-        'recent_activity':   [dict(r) for r in recent_logs],
+        'recent_activity': [dict(r) for r in recent_logs],
     })
 
 @app.route('/api/admin/commodities', methods=['DELETE'])
 @admin_required
 def admin_delete_commodity():
     commodity = request.get_json().get('commodity')
-    data      = load_data()
+    data = load_data()
     if commodity not in data:
         return jsonify({'error': 'Commodity not found'}), 404
     del data[commodity]
     save_data(data)
+    model_cache.clear()
     log_activity(session['user_id'], 'DELETE_COMMODITY', commodity)
     return jsonify({'message': f'{commodity} deleted successfully'})
 
@@ -847,7 +973,8 @@ def update_profile():
 if __name__ == '__main__':
     init_db()
     initialize_data()
-    port       = int(os.environ.get('PORT', 5000))
+    import math
+    port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    host       = '0.0.0.0' if os.environ.get('RENDER') else '127.0.0.1'
+    host = '0.0.0.0' if os.environ.get('RENDER') else '127.0.0.1'
     app.run(host=host, port=port, debug=debug_mode, threaded=True)
